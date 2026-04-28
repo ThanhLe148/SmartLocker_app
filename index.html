@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Smart Locker - Shipper Flow</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-fixed-variant": "#2c4e36",
+                        "on-secondary-container": "#55656d",
+                        "surface-container": "#eceeed",
+                        "on-tertiary-fixed-variant": "#41493f",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-container": "#323930",
+                        "on-error": "#ffffff",
+                        "on-background": "#191c1c",
+                        "surface-container-high": "#e6e9e8",
+                        "secondary-fixed": "#d5e5ef",
+                        "on-tertiary-fixed": "#161d15",
+                        "surface-container-highest": "#e1e3e2",
+                        "secondary-fixed-dim": "#b9c9d3",
+                        "outline-variant": "#c2c8c0",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#596156",
+                        "surface": "#f8faf9",
+                        "on-error-container": "#93000a",
+                        "inverse-on-surface": "#eff1f0",
+                        "error": "#ba1a1a",
+                        "surface-dim": "#d8dada",
+                        "tertiary-fixed-dim": "#c1c9bc",
+                        "secondary-container": "#d2e2ec",
+                        "primary-fixed-dim": "#aad0b1",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed": "#dde5d8",
+                        "on-secondary-fixed": "#0e1d25",
+                        "surface-variant": "#e1e3e2",
+                        "on-primary-container": "#1c3e27",
+                        "on-surface-variant": "#424842",
+                        "inverse-surface": "#2e3131",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed": "#00210e",
+                        "primary": "#43664d",
+                        "on-secondary-fixed-variant": "#3a4951",
+                        "surface-container-low": "#f2f4f3",
+                        "surface-bright": "#f8faf9",
+                        "primary-container": "#84a98c",
+                        "on-secondary": "#ffffff",
+                        "inverse-primary": "#aad0b1",
+                        "surface-tint": "#43664d",
+                        "background": "#f8faf9",
+                        "outline": "#727972",
+                        "tertiary-container": "#9ba397",
+                        "primary-fixed": "#c5eccc",
+                        "on-surface": "#191c1c",
+                        "secondary": "#516169"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "gutter": "24px",
+                        "grid-columns": "12",
+                        "container-max": "1280px",
+                        "section-padding": "120px",
+                        "base": "8px"
+                    },
+                    fontFamily: {
+                        "headline-lg": ["Space Grotesk"],
+                        "label-sm": ["Manrope"],
+                        "headline-md": ["Space Grotesk"],
+                        "body-lg": ["Manrope"],
+                        "display-xl": ["Space Grotesk"],
+                        "body-md": ["Manrope"]
+                    },
+                    fontSize: {
+                        "headline-lg": ["48px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "label-sm": ["14px", { "lineHeight": "1.4", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md": ["32px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "display-xl": ["84px", { "lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(12px);
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        body {
+            min-height: max(884px, 100dvh);
+        }
+
+        .screen {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background font-body-md text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+
+    <!-- TopAppBar Shell -->
+    <header
+        class="fixed top-0 w-full z-50 flex justify-between items-center px-6 py-3 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border-b border-white/20 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary">
+                <img alt="Avatar" class="w-full h-full object-cover"
+                    data-alt="close up professional portrait of a delivery person in a clean uniform smiling confidently"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZr_MUAunIpnpca8VDjkV5EIGs_wmbi5jizgcd9pgy7nOMm-4sRiWZb_kkyQj2Q7UJUhIWDdmCuIrP2H26Ct2utCIEGiL0BF8heQqpYVDzAV8yfSDjjSVrMalB6pqDiH5TMqrEWc5kGazWhYHw1f8X7GExw-4usu5adj5WboTERQjUIL-FN-gLvp_FMeFufq4sMgOsPjcOgG_qbOMSKvqL6z1wMuZ94vpZc8M7L0AoPfm2CQgy-YsHBxT0DHsIwW89gn999G4ZZs4" />
+            </div>
+            <span class="text-xl font-bold tracking-tight text-emerald-800 font-headline-md">Nguyễn Văn A</span>
+        </div>
+        <button
+            class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/60 transition-all text-emerald-700">
+            <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+        </button>
+    </header>
+
+    <main class="pt-20 pb-32">
+
+        <!-- Screen: Home -->
+        <div id="screen-home" class="screen active">
+            <!-- Hero Section -->
+            <section class="px-6 py-12 md:py-24 max-w-container-max mx-auto overflow-hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                    <div class="lg:col-span-6 space-y-6">
+                        <span
+                            class="inline-block px-4 py-1 rounded-full bg-primary-container/20 text-on-primary-container font-label-sm uppercase tracking-widest">Shipper</span>
+                        <h1 class="font-headline-lg text-headline-lg text-on-surface">Giao Hàng Chuyên Nghiệp Cho
+                            Shipper</h1>
+                        <p class="font-body-lg text-body-lg text-secondary">Tối ưu hóa quy trình giao hàng cuối cùng với
+                            công nghệ tủ thông minh Smartlocker. Nhanh chóng, an toàn và minh bạch.</p>
+                        <div class="flex flex-wrap gap-4 pt-4">
+                            <button onclick="switchScreen('map')"
+                                class="bg-primary text-on-primary font-label-sm px-8 py-4 rounded-full shadow-lg shadow-primary/20 hover:scale-105 transition-transform">Bắt
+                                đầu giao hàng ngay</button>
+                            <button
+                                class="glass-card text-primary border border-primary/20 font-label-sm px-8 py-4 rounded-full hover:bg-primary/5 transition-all">Tìm
+                                hiểu thêm</button>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-6 relative">
+                        <div class="relative z-10 rounded-[2rem] overflow-hidden shadow-2xl">
+                            <img alt="Smart Locker Hero"
+                                class="w-full h-full object-cover aspect-square md:aspect-video lg:aspect-square"
+                                data-alt="modern green modular smart delivery locker system in a clean interior space"
+                                src="https://lh3.googleusercontent.com/aida/ADBb0ujjtAKtQ8DcN2hlIjwlz2YqxVArjGeOo5CyvefDQGWRlDM6fEsujcLUNeYl03XesJqVb5XpRd6r8ANG4ur00894OZ-sMqFFGk5hQR_WrCWm1rsiFdlCiRKH1cCWiCUsoZlGOOerrNbLjd4UVj82x5ih0dx4C-JPC1zmNj5_0yG6Ux9SENw7n8_5co-0x5Eyh7ZoWbMV6LEhYH6yQQKbp1LztAtOzwou5I5hWEWmUDQrQlkjPIIWaKcTPBGURwrTaGWHUELHRvuy_w" />
+                        </div>
+                        <div class="absolute -bottom-6 -left-6 glass-card p-6 rounded-2xl shadow-xl z-20 max-w-[240px]">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-primary text-4xl"
+                                    data-icon="bolt">bolt</span>
+                                <div>
+                                    <p class="font-bold text-on-surface">Tiết kiệm 40%</p>
+                                    <p class="text-sm text-secondary">Thời gian giao hàng</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Onboarding & Xác thực -->
+            <section class="px-6 py-section-padding bg-surface-container-low">
+                <div class="max-w-container-max mx-auto">
+                    <div class="text-center mb-16">
+                        <h2 class="font-headline-md text-headline-md text-on-surface">Hướng Dẫn Đăng Ký</h2>
+                        <p class="text-secondary mt-2">Bắt đầu sự nghiệp giao nhận thông minh chỉ trong vài phút</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <!-- Step 1 -->
+                        <div
+                            class="glass-card p-8 rounded-[2.5rem] flex flex-col items-center text-center space-y-4 hover:translate-y-[-8px] transition-transform">
+                            <div
+                                class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                                <span class="material-symbols-outlined text-3xl"
+                                    data-icon="smartphone">smartphone</span>
+                            </div>
+                            <h3 class="font-headline-md text-2xl">01. Đăng ký OTP</h3>
+                            <p class="text-secondary font-body-md">Xác thực nhanh qua số điện thoại để bắt đầu hành
+                                trình của bạn.</p>
+                        </div>
+                        <!-- Step 2 -->
+                        <div
+                            class="glass-card p-8 rounded-[2.5rem] flex flex-col items-center text-center space-y-4 hover:translate-y-[-8px] transition-transform">
+                            <div
+                                class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                                <span class="material-symbols-outlined text-3xl" data-icon="badge">badge</span>
+                            </div>
+                            <h3 class="font-headline-md text-2xl">02. Cập nhật Profile</h3>
+                            <p class="text-secondary font-body-md">Chọn đơn vị (GHTK/GHN) và định danh OCR với CCCD
+                                trong 30 giây.</p>
+                        </div>
+                        <!-- Step 3 -->
+                        <div
+                            class="glass-card p-8 rounded-[2.5rem] flex flex-col items-center text-center space-y-4 hover:translate-y-[-8px] transition-transform">
+                            <div
+                                class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                                <span class="material-symbols-outlined text-3xl"
+                                    data-icon="verified_user">verified_user</span>
+                            </div>
+                            <h3 class="font-headline-md text-2xl">03. Chờ phê duyệt</h3>
+                            <p class="text-secondary font-body-md">Hệ thống AI tự động phê duyệt hồ sơ trong vòng 2 giờ
+                                làm việc.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Screen: Map / Dashboard -->
+        <div id="screen-map" class="screen">
+            <section class="px-6 py-12 md:py-24 max-w-container-max mx-auto">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                    <!-- Stats Dashboard -->
+                    <div class="lg:col-span-4 space-y-6">
+                        <h2 class="font-headline-md text-headline-md">Tổng quan hôm nay</h2>
+                        <div class="grid grid-cols-1 gap-4">
+                            <div class="glass-card p-6 rounded-2xl border-l-4 border-primary">
+                                <p class="text-secondary font-label-sm">Cần giao</p>
+                                <p class="text-4xl font-bold text-on-surface">12</p>
+                            </div>
+                            <div class="glass-card p-6 rounded-2xl border-l-4 border-emerald-500">
+                                <p class="text-secondary font-label-sm">Đã hoàn thành</p>
+                                <p class="text-4xl font-bold text-on-surface">45</p>
+                            </div>
+                            <div class="glass-card p-6 rounded-2xl border-l-4 border-error">
+                                <p class="text-secondary font-label-sm">Đơn lỗi</p>
+                                <p class="text-4xl font-bold text-on-surface">0</p>
+                            </div>
+                            <!-- Tủ Trống Info -->
+                            <div class="glass-card p-6 rounded-2xl border-l-4 border-primary bg-primary/5">
+                                <p class="font-bold border-b border-surface-container pb-2 mb-2 text-on-surface">Tủ
+                                    SmartLocker-01</p>
+                                <div class="space-y-1">
+                                    <div class="flex justify-between gap-8"><span
+                                            class="text-sm text-secondary">Small:</span>
+                                        <span class="text-primary font-bold">5 còn trống</span>
+                                    </div>
+                                    <div class="flex justify-between gap-8"><span
+                                            class="text-sm text-secondary">Large:</span>
+                                        <span class="text-primary font-bold">2 còn trống</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Map Interface -->
+                    <div class="lg:col-span-8">
+                        <div
+                            class="glass-card rounded-[2rem] overflow-hidden h-[500px] relative border border-outline-variant/30">
+                            <!-- Map Placeholder -->
+                            <div class="absolute inset-0 bg-slate-200">
+                                <div
+                                    class="w-full h-full flex flex-col items-center justify-center p-8 bg-gradient-to-br from-surface-container-low to-white/60">
+                                    <div
+                                        class="max-w-md w-full glass-card p-8 rounded-[2rem] border border-primary/10 shadow-2xl space-y-6">
+                                        <div class="text-center">
+                                            <h3 class="font-headline-md text-2xl text-on-surface">Xác nhận giao hàng
+                                            </h3>
+                                            <p class="text-secondary text-sm mt-2 font-body-md">Chụp ảnh hoặc quay video
+                                                kiện hàng trong ngăn tủ để hoàn tất.</p>
+                                        </div>
+                                        <div
+                                            class="border-2 border-dashed border-primary/30 rounded-2xl p-10 flex flex-col items-center justify-center gap-4 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer">
+                                            <div class="flex gap-4">
+                                                <span class="material-symbols-outlined text-4xl text-primary"
+                                                    data-icon="photo_camera">photo_camera</span>
+                                                <span class="material-symbols-outlined text-4xl text-primary"
+                                                    data-icon="videocam">videocam</span>
+                                            </div>
+                                            <p class="text-primary font-bold font-label-sm">Kéo thả hoặc chạm để tải lên
+                                            </p>
+                                        </div>
+                                        <button
+                                            class="w-full bg-primary text-on-primary font-bold py-4 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                                            <span class="material-symbols-outlined"
+                                                data-icon="cloud_upload">cloud_upload</span>
+                                            <span>Tải lên minh chứng</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Map Marker UI -->
+                            <!-- <div class="absolute top-12 left-1/2 -translate-x-1/2 z-10">
+                                <div
+                                    class="bg-primary text-white p-3 rounded-full shadow-lg flex items-center gap-2 cursor-pointer animate-bounce">
+                                    <span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+                                </div>
+                            </div> -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Screen: History / Flow -->
+        <div id="screen-history" class="screen">
+            <section
+                class="px-6 py-12 md:py-24 max-w-container-max mx-auto bg-surface-container-highest/30 rounded-[3rem] mt-12">
+                <div class="text-center mb-16">
+                    <h2 class="font-headline-md text-headline-md">Quy trình Giao hàng</h2>
+                    <p class="text-secondary mt-2">Đơn giản hóa việc gửi hàng tại tủ thông minh</p>
+                </div>
+                <div class="relative">
+                    <!-- Progress Line (Desktop) -->
+                    <div
+                        class="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-primary/20 -translate-y-1/2 z-0">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-8 relative z-10">
+                        <!-- Step 1 -->
+                        <div class="flex flex-col items-center space-y-6">
+                            <div
+                                class="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-xl font-bold shadow-lg">
+                                1</div>
+                            <div
+                                class="glass-card p-6 rounded-2xl w-full text-center group hover:bg-primary transition-colors duration-300">
+                                <span class="material-symbols-outlined text-4xl text-primary group-hover:text-white"
+                                    data-icon="qr_code_scanner">qr_code_scanner</span>
+                                <h4 class="font-bold mt-4 group-hover:text-white">Quét đơn</h4>
+                                <p class="text-xs text-secondary mt-2 group-hover:text-white/80">Quét mã QR hoặc Barcode
+                                    trên kiện hàng</p>
+                            </div>
+                        </div>
+                        <!-- Step 2 -->
+                        <div class="flex flex-col items-center space-y-6">
+                            <div
+                                class="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-xl font-bold shadow-lg">
+                                2</div>
+                            <div
+                                class="glass-card p-6 rounded-2xl w-full text-center group hover:bg-primary transition-colors duration-300">
+                                <span class="material-symbols-outlined text-4xl text-primary group-hover:text-white"
+                                    data-icon="location_on">location_on</span>
+                                <h4 class="font-bold mt-4 group-hover:text-white">Check-in</h4>
+                                <p class="text-xs text-secondary mt-2 group-hover:text-white/80">Xác thực vị trí GPS
+                                    trong phạm vi &lt; 20m</p>
+                            </div>
+                        </div>
+                        <!-- Step 3 -->
+                        <div class="flex flex-col items-center space-y-6">
+                            <div
+                                class="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-xl font-bold shadow-lg">
+                                3</div>
+                            <div
+                                class="glass-card p-6 rounded-2xl w-full text-center group hover:bg-primary transition-colors duration-300">
+                                <span class="material-symbols-outlined text-4xl text-primary group-hover:text-white"
+                                    data-icon="view_quilt">view_quilt</span>
+                                <h4 class="font-bold mt-4 group-hover:text-white">Chọn ngăn</h4>
+                                <p class="text-xs text-secondary mt-2 group-hover:text-white/80">Lựa chọn kích thước S,
+                                    M, L phù hợp</p>
+                            </div>
+                        </div>
+                        <!-- Step 4 -->
+                        <div class="flex flex-col items-center space-y-6">
+                            <div
+                                class="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-xl font-bold shadow-lg">
+                                4</div>
+                            <div
+                                class="glass-card p-6 rounded-2xl w-full text-center group hover:bg-primary transition-colors duration-300">
+                                <span class="material-symbols-outlined text-4xl text-primary group-hover:text-white"
+                                    data-icon="lock_open">lock_open</span>
+                                <h4 class="font-bold mt-4 group-hover:text-white">Mở tủ</h4>
+                                <p class="text-xs text-secondary mt-2 group-hover:text-white/80">Kích hoạt lệnh mở qua
+                                    MQTT/Bluetooth</p>
+                            </div>
+                        </div>
+                        <!-- Step 5 -->
+                        <div class="flex flex-col items-center space-y-6">
+                            <div
+                                class="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-xl font-bold shadow-lg">
+                                5</div>
+                            <div
+                                class="glass-card p-6 rounded-2xl w-full text-center group hover:bg-primary transition-colors duration-300">
+                                <span class="material-symbols-outlined text-4xl text-primary group-hover:text-white"
+                                    data-icon="photo_camera">photo_camera</span>
+                                <h4 class="font-bold mt-4 group-hover:text-white">Xác nhận</h4>
+                                <p class="text-xs text-secondary mt-2 group-hover:text-white/80">Chụp ảnh kiện hàng để
+                                    hoàn tất quy trình</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Screen: Profile -->
+        <div id="screen-profile" class="screen">
+            <section class="px-6 py-12 md:py-24">
+                <div
+                    class="max-w-4xl mx-auto glass-card rounded-[3rem] p-12 text-center bg-primary/5 border-primary/10 overflow-hidden relative">
+                    <div
+                        class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent">
+                    </div>
+                    <h2 class="font-headline-lg text-headline-md md:text-headline-lg mb-6">Cá Nhân & Cài Đặt</h2>
+                    <p class="text-body-lg text-secondary mb-10 max-w-2xl mx-auto">Tham gia vào mạng lưới giao nhận hiện
+                        đại nhất Việt Nam ngay hôm nay.</p>
+                    <div class="flex flex-col md:flex-row gap-4 justify-center">
+                        <button
+                            class="bg-primary text-on-primary font-bold px-10 py-5 rounded-full text-lg shadow-xl shadow-primary/30 hover:scale-105 transition-all">Đăng
+                            xuất</button>
+                        <button
+                            class="bg-white text-on-surface font-bold px-10 py-5 rounded-full text-lg border border-outline-variant/30 hover:bg-surface-container transition-all">Liên
+                            hệ hỗ trợ</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+    </main>
+
+    <!-- BottomNavBar Shell -->
+    <nav
+        class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-3 pb-safe bg-white/40 dark:bg-slate-900/40 backdrop-blur-lg border-t border-white/20 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] md:hidden">
+        <button id="nav-home" onclick="switchScreen('home')"
+            class="nav-btn flex flex-col items-center justify-center text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20 rounded-full px-4 py-1 translate-y-[-2px] duration-300">
+            <span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+            <span class="font-['Space_Grotesk'] text-[11px] font-semibold">Trang chủ</span>
+        </button>
+        <button id="nav-map" onclick="switchScreen('map')"
+            class="nav-btn flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-emerald-600 transition-colors bg-transparent px-4 py-1 rounded-full">
+            <span class="material-symbols-outlined" data-icon="map">map</span>
+            <span class="font-['Space_Grotesk'] text-[11px] font-semibold">Bản đồ</span>
+        </button>
+        <button id="nav-history" onclick="switchScreen('history')"
+            class="nav-btn flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-emerald-600 transition-colors bg-transparent px-4 py-1 rounded-full">
+            <span class="material-symbols-outlined" data-icon="history">history</span>
+            <span class="font-['Space_Grotesk'] text-[11px] font-semibold">Lịch sử</span>
+        </button>
+        <button id="nav-profile" onclick="switchScreen('profile')"
+            class="nav-btn flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-emerald-600 transition-colors bg-transparent px-4 py-1 rounded-full">
+            <span class="material-symbols-outlined" data-icon="person">person</span>
+            <span class="font-['Space_Grotesk'] text-[11px] font-semibold">Cá nhân</span>
+        </button>
+    </nav>
+
+    <!-- Desktop Floating Navigation Side-bar Hidden on mobile -->
+    <aside class="hidden lg:flex fixed left-6 top-1/2 -translate-y-1/2 flex-col gap-6 z-40">
+        <div class="glass-card p-3 rounded-full flex flex-col gap-4 shadow-xl border border-white/40">
+            <button onclick="switchScreen('home')"
+                class="w-12 h-12 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all"
+                title="Trang chủ">
+                <span class="material-symbols-outlined">home</span>
+            </button>
+            <button onclick="switchScreen('map')"
+                class="w-12 h-12 flex items-center justify-center rounded-full text-secondary hover:bg-surface-container hover:text-primary transition-all"
+                title="Bản đồ">
+                <span class="material-symbols-outlined">map</span>
+            </button>
+            <button onclick="switchScreen('profile')"
+                class="w-12 h-12 flex items-center justify-center rounded-full text-secondary hover:bg-surface-container hover:text-primary transition-all"
+                title="Cài đặt">
+                <span class="material-symbols-outlined">settings</span>
+            </button>
+        </div>
+    </aside>
+
+    <script>
+        function switchScreen(screenId) {
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+
+            // Show target screen
+            document.getElementById('screen-' + screenId).classList.add('active');
+
+            // Update mobile navigation styles
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-emerald-700', 'dark:text-emerald-400', 'bg-emerald-50/50', 'dark:bg-emerald-900/20', 'translate-y-[-2px]');
+                btn.classList.add('text-slate-400', 'dark:text-slate-500', 'bg-transparent');
+            });
+
+            const activeBtn = document.getElementById('nav-' + screenId);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-400', 'dark:text-slate-500', 'bg-transparent');
+                activeBtn.classList.add('text-emerald-700', 'dark:text-emerald-400', 'bg-emerald-50/50', 'dark:bg-emerald-900/20', 'translate-y-[-2px]');
+            }
+
+            // Scroll to top
+            window.scrollTo(0, 0);
+        }
+    </script>
+</body>
+
+</html>
