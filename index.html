@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SmartLocker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Material+Symbols+Outlined&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./styles.css" />
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="./config.js"></script>
@@ -14,6 +20,7 @@
         <header class="topbar">
           <strong>SmartLocker</strong>
           <div class="account-pill">
+            <span id="roleBadge" class="role-badge">Cư dân</span>
             <span id="accountName">demo_account</span>
             <span class="avatar">T</span>
           </div>
@@ -23,15 +30,15 @@
 
         <nav class="bottom-nav" aria-label="Điều hướng chính">
           <button class="nav-item active" data-route="home" type="button">
-            <span class="nav-icon">⌂</span>
+            <span class="material-symbols-outlined nav-icon">home</span>
             <span>Trang chủ</span>
           </button>
           <button class="nav-item" data-route="orders" type="button">
-            <span class="nav-icon">▣</span>
-            <span>Đơn</span>
+            <span class="material-symbols-outlined nav-icon">history</span>
+            <span id="ordersNavLabel">Đơn hàng</span>
           </button>
           <button class="nav-item" data-route="profile" type="button">
-            <span class="nav-icon">◎</span>
+            <span class="material-symbols-outlined nav-icon">account_circle</span>
             <span>Tài khoản</span>
           </button>
         </nav>
