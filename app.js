@@ -1,823 +1,709 @@
-const demoOrders = [
-  {
-    id: "SPX-150",
-    shipper: "Đơn Shopee",
-    receiver: "Bình Dương, Việt Nam",
-    price: 150000,
-    size: "M",
-    compartment: "05",
-    status: "ready",
-    freeStorage: "3 giờ 15 phút",
-    icon: "inventory_2",
-    created_at: new Date(Date.now() - 22 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "NHT-884",
-    shipper: "Đơn người thân gửi",
-    receiver: "Bình Dương, Việt Nam",
-    price: 0,
-    size: "S",
-    compartment: "02",
-    status: "ready",
-    freeStorage: "12 giờ 30 phút",
-    icon: "redeem",
-    created_at: new Date(Date.now() - 62 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "LZD-420",
-    shipper: "Đơn Lazada",
-    receiver: "Bình Dương, Việt Nam",
-    price: 100000,
-    size: "L",
-    compartment: "12",
-    status: "ready",
-    freeStorage: "5 giờ 45 phút",
-    icon: "local_shipping",
-    created_at: new Date(Date.now() - 100 * 60 * 1000).toISOString(),
-  },
+const config = window.SUPABASE_CONFIG || {};
+const hasSupabase = Boolean(config.url && config.anonKey && window.supabase);
+const supabaseClient = hasSupabase ? window.supabase.createClient(config.url, config.anonKey) : null;
+
+const view = document.querySelector("#view");
+const stepPanel = document.querySelector("#stepPanel");
+const toast = document.querySelector("#toast");
+const roleBadge = document.querySelector("#roleBadge");
+const accountName = document.querySelector("#accountName");
+const ordersNavLabel = document.querySelector("#ordersNavLabel");
+const historyNavLabel = document.querySelector("#historyNavLabel");
+
+const receiverSteps = ["Quét QR", "Chọn đơn", "Xác thực", "Lấy hàng", "Đóng tủ", "Hoàn tất"];
+const shipperSteps = ["Quét QR", "Đăng nhập", "Vận đơn", "Thanh toán", "Chọn ngăn", "Bỏ hàng", "Đóng tủ", "Cập nhật", "Hoàn tất"];
+
+const receiverOrders = [
+  { id: "DH001", shop: "Shopee", locker: "A12", sent: "09:30 hôm nay", remain: "Còn 2 giờ 15 phút", fee: "0đ", status: "Chờ nhận" },
+  { id: "DH002", shop: "Lazada", locker: "B02", sent: "10:10 hôm nay", remain: "Sắp hết hạn", fee: "5.000đ", status: "Cần thanh toán phí" },
+];
+
+const shipperTasks = [
+  { id: "DH118", receiver: "Nguyễn Văn A", status: "Chờ chọn ngăn", action: "Tiếp tục" },
+  { id: "DH119", receiver: "Trần Minh Khang", status: "Chưa thanh toán", action: "Kiểm tra lại" },
 ];
 
 const state = {
   route: "home",
   role: localStorage.getItem("smartlocker.role") || "resident",
-  user: null,
-  orders: JSON.parse(localStorage.getItem("smartlocker.orders") || "null") || demoOrders,
-  selectedOrderId: "SPX-150",
+  user: JSON.parse(localStorage.getItem("smartlocker.user") || "null"),
+  currentStep: 0,
+  selectedOrderId: "DH001",
+  helperPhone: "",
+  helperCode: "",
+  doorAttempt: 0,
+  otp: makeOtp(),
   draft: {
-    parcelCode: "",
-    receiver: "Nguyễn Văn A",
-    phone: "0957 684 876",
-    amount: "0",
-    size: "M",
+    parcelCode: "DH118",
+    receiverPhone: "0901234567",
+    receiverName: "Nguyễn Văn A",
+    note: "",
+    size: "Vừa",
+    compartment: "A04",
   },
-  receiverWallet: 200000,
-  shipperWallet: 500000,
-  todayEarnings: 0,
-  selectedTopupAmount: 0,
-  selectedWithdrawAmount: 0,
-  barcodeScanned: false,
-  dropoffPhotoCaptured: false,
-  lastCod: 0,
+  history: JSON.parse(localStorage.getItem("smartlocker.history") || "null") || [
+    { title: "DH000 - Shopee", status: "Đã lấy hàng lúc 08:45 hôm nay" },
+    { title: "DH099 - Giao hàng", status: "Đã giao thành công, thưởng 700đ" },
+  ],
 };
 
-const config = window.SUPABASE_CONFIG || {};
-const hasSupabase = Boolean(config.url && config.anonKey && window.supabase);
-const supabaseClient = hasSupabase ? window.supabase.createClient(config.url, config.anonKey) : null;
-const view = document.querySelector("#view");
-const toast = document.querySelector("#toast");
-const roleBadge = document.querySelector("#roleBadge");
-const ordersNavLabel = document.querySelector("#ordersNavLabel");
-const accountName = document.querySelector("#accountName");
+const routes = {
+  home,
+  orders,
+  history,
+  profile,
+  receiverQr,
+  receiverOrdersScreen,
+  receiverHelper,
+  receiverProcess,
+  receiverClose,
+  receiverDoorCheck,
+  receiverDone,
+  shipperQr,
+  shipperLogin,
+  shipperParcel,
+  shipperPayment,
+  shipperPaymentWaiting,
+  shipperCancelled,
+  shipperChooseCompartment,
+  shipperDropoff,
+  shipperClose,
+  shipperDoorCheck,
+  shipperDone,
+};
+
+function makeOtp() {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
 
 function icon(name, className = "") {
-  return `<span class="material-symbols-outlined ${className}">${name}</span>`;
+  return `<span class="material-symbols-outlined ${className}" aria-hidden="true">${name}</span>`;
 }
 
-function money(value, suffix = "VNĐ") {
-  return `${new Intl.NumberFormat("vi-VN").format(value || 0)} ${suffix}`;
-}
-
-function codValue() {
-  return Number(String(state.draft.amount || "0").replace(/\D/g, "")) || 0;
-}
-
-function persistOrders() {
-  localStorage.setItem("smartlocker.orders", JSON.stringify(state.orders));
-}
-
-function selectedOrder() {
-  return state.orders.find((order) => order.id === state.selectedOrderId) || state.orders[0];
-}
-
-function routeForRole(route) {
-  if (state.role === "shipper") {
-    if (route === "home") return "shipperHome";
-    if (route === "orders") return "shipperHistory";
-  }
-  return route;
-}
-
-function navRoute(route) {
-  if (route === "shipperHome" || route === "home") return "home";
-  if (route === "shipperHistory" || route === "orders") return "orders";
-  return route;
-}
-
-function updateAppChrome() {
-  const isShipper = state.role === "shipper";
-  if (roleBadge) {
-    roleBadge.textContent = isShipper ? "Shipper" : "Cư dân";
-    roleBadge.classList.toggle("shipper", isShipper);
-  }
-  if (ordersNavLabel) ordersNavLabel.textContent = isShipper ? "Lịch sử" : "Đơn hàng";
+function saveState() {
+  localStorage.setItem("smartlocker.role", state.role);
+  localStorage.setItem("smartlocker.user", JSON.stringify(state.user));
+  localStorage.setItem("smartlocker.history", JSON.stringify(state.history));
 }
 
 function setRoute(route) {
-  state.route = routeForRole(route);
-  updateAppChrome();
-  document.querySelectorAll(".nav-item").forEach((item) => {
-    item.classList.toggle("active", item.dataset.route === navRoute(state.route));
-  });
+  state.route = route;
+  if (!route.includes("DoorCheck")) state.doorAttempt = 0;
+  saveState();
   render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
-  window.setTimeout(() => toast.classList.remove("show"), 2400);
+  window.setTimeout(() => toast.classList.remove("show"), 2300);
 }
 
 function render() {
-  const templates = {
-    home: state.user ? dashboard : landing,
-    login,
-    profile,
-    orders,
-    detail,
-    receiveDone,
-    lockerStatus: receiverDoorOpen,
-    receiverTopup,
-    receiverQr,
-    receiverChooseOrder,
-    receiverDoorOpen,
-    receiverTakeParcel,
-    receiverCloseLocker,
-    receiverDone,
-    receiverCancel,
-    shipperHome,
-    scanLocker,
-    parcelForm,
-    scanParcel,
-    chooseSize,
-    shipperConfirm,
-    shipperDone,
-    shipperHistory,
-    shipperWithdraw,
-    shipperNotifyCost: parcelForm,
-    shipperWaitReceiver: chooseSize,
-  };
-  updateAppChrome();
-  view.innerHTML = templates[state.route]();
-  bindView();
+  updateChrome();
+  view.innerHTML = (routes[state.route] || home)();
+  stepPanel.innerHTML = stepper();
 }
 
-function landing() {
+function updateChrome() {
+  const isShipper = state.role === "shipper";
+  roleBadge.textContent = isShipper ? "Người giao hàng" : "Cư dân";
+  roleBadge.classList.toggle("shipper", isShipper);
+  accountName.textContent = state.user?.name || "Nguyễn Văn A";
+  ordersNavLabel.textContent = isShipper ? "Đơn giao" : "Đơn hàng";
+  historyNavLabel.textContent = "Lịch sử";
+
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    const route = item.dataset.route;
+    const active = route === state.route || (route === "home" && state.route === "home");
+    item.classList.toggle("active", active && !item.dataset.action);
+  });
+}
+
+function currentSteps() {
+  return state.role === "shipper" ? shipperSteps : receiverSteps;
+}
+
+function stepper() {
+  const steps = currentSteps();
   return `
-    <div class="landing-screen">
-      <span class="eyebrow">PLATFORM</span>
-      <h1>Mạng Lưới Tủ Khóa Thông Minh</h1>
-      <p class="lead">Hệ sinh thái giao nhận toàn diện kết nối trực tiếp Shipper và Cư dân thông qua công nghệ tủ thông minh SmartLocker.</p>
-      <button class="btn-brand" data-action="login" type="button">${icon("login")} Đăng nhập để dùng ngay</button>
-      <figure class="locker-hero">
+    <div class="stack">
+      <span class="eyebrow">${state.role === "shipper" ? "Luồng giao hàng" : "Luồng nhận hàng"}</span>
+      <h3>${state.role === "shipper" ? "Giao hàng nhanh" : "Nhận hàng nhanh"}</h3>
+      <p class="muted">Chỉ hiển thị các bước người dùng cần thao tác. Trạng thái hệ thống được gộp trong màn xử lý.</p>
+      <ol class="step-list compact">
+        ${steps.map((step, index) => {
+          const cls = index < state.currentStep ? "done" : index === state.currentStep ? "current" : "";
+          return `<li class="${cls}">${step}</li>`;
+        }).join("")}
+      </ol>
+    </div>
+  `;
+}
+
+function progress(step, total = currentSteps().length) {
+  const percent = Math.round((step / total) * 100);
+  return `
+    <div class="progress">
+      <div class="progress-top">
+        <span>Bước ${step}/${total}</span>
+        <span>${percent}%</span>
+      </div>
+      <div class="bar"><span style="width:${percent}%"></span></div>
+    </div>
+  `;
+}
+
+function titleBlock(label, title, copy = "") {
+  return `
+    <div class="title-stack">
+      <span class="eyebrow">${label}</span>
+      <h2>${title}</h2>
+      ${copy ? `<p class="lead">${copy}</p>` : ""}
+    </div>
+  `;
+}
+
+function sectionHeader(title, copy = "") {
+  return `<div class="section-head"><h2>${title}</h2>${copy ? `<p class="muted">${copy}</p>` : ""}</div>`;
+}
+
+function home() {
+  state.currentStep = 0;
+  return state.role === "shipper" ? shipperDashboard() : residentDashboard();
+}
+
+function residentDashboard() {
+  return `
+    <div class="page">
+      <section class="dashboard-hero">
+        <div>
+          <span class="eyebrow">Cư dân</span>
+          <h1>Xin chào, Nguyễn Văn A</h1>
+          <p class="lead">Bạn có <strong>2 đơn</strong> đang chờ nhận tại SmartLocker.</p>
+        </div>
         <img src="./assets/green-locker.png" alt="Tủ khóa thông minh SmartLocker" />
-      </figure>
-      <section class="guide-card">
-        <h2>Hướng Dẫn Đăng Ký</h2>
-        <p>Tham gia hệ thống chỉ trong vài phút</p>
-        ${guideStep("smartphone", "01. Đăng ký OTP", "Xác thực nhanh qua số điện thoại để tạo tài khoản cá nhân.")}
-        ${guideStep("badge", "02. Chọn Vai Trò", "Lựa chọn hồ sơ là Đối tác Giao hàng hoặc Người nhận.")}
-        ${guideStep("verified_user", "03. Bắt đầu sử dụng", "Hệ thống sẵn sàng phục vụ các nhu cầu giao và nhận hàng.")}
+      </section>
+      <section class="action-panel">
+        <div>
+          <h2>Tác vụ chính</h2>
+          <p class="muted">Đang đứng trước tủ? Quét QR để mở đúng ngăn.</p>
+        </div>
+        <div class="choice-grid">
+          <button class="primary-btn tall-btn" data-route="receiverQr" type="button">${icon("qr_code_scanner")} Quét QR tủ</button>
+          <button class="secondary-btn tall-btn" data-action="manualLocker" type="button">${icon("pin")} Nhập mã tủ thủ công</button>
+        </div>
+      </section>
+      <section class="card button-stack">
+        ${sectionHeader("Đơn đang chờ nhận", "Thông tin đủ để quyết định lấy đơn nào trước.")}
+        <div class="list-stack">${receiverOrders.map(orderCard).join("")}</div>
+      </section>
+      <section class="card button-stack">
+        ${sectionHeader("Không thấy đơn của bạn?", "Dùng khi nhận hàng giúp người thân hoặc bạn cùng nhà.")}
+        <button class="secondary-btn" data-route="receiverHelper" type="button">${icon("group")} Lấy hộ người khác</button>
       </section>
     </div>
   `;
 }
 
-function guideStep(symbol, title, copy) {
+function shipperDashboard() {
   return `
-    <article class="guide-step">
+    <div class="page">
+      <section class="dashboard-hero shipper">
+        <div>
+          <span class="eyebrow">Người giao hàng - Đã duyệt</span>
+          <h1>Giao hàng hôm nay</h1>
+          <p class="lead">Ưu tiên quét tủ, nhập vận đơn và xử lý đơn đang giao.</p>
+        </div>
+        <img src="./assets/green-locker.png" alt="Tủ khóa thông minh SmartLocker" />
+      </section>
+      <section class="action-panel">
+        <div>
+          <h2>Bắt đầu giao hàng</h2>
+          <p class="muted">Quét QR tủ trước, sau đó nhập hoặc quét mã vận đơn.</p>
+        </div>
+        <div class="choice-grid">
+          <button class="primary-btn tall-btn" data-route="shipperQr" type="button">${icon("qr_code_scanner")} Quét QR tủ</button>
+          <button class="secondary-btn tall-btn" data-route="shipperParcel" type="button">${icon("barcode_scanner")} Nhập mã vận đơn</button>
+        </div>
+      </section>
+      <section class="metric-grid">
+        ${metric("Cần giao", "12", "inventory_2")}
+        ${metric("Đã hoàn thành", "45", "task_alt")}
+        ${metric("Đơn lỗi", "0", "error")}
+        ${metric("Thu nhập", "31.500đ", "payments")}
+      </section>
+      <section class="card button-stack">
+        ${sectionHeader("Đơn đang xử lý", "Tiếp tục đúng bước, không cần xem lại hướng dẫn.")}
+        <div class="list-stack">
+          ${shipperTasks.map((task) => `
+            <article class="task-card">
+              <span class="order-icon">${icon("local_shipping")}</span>
+              <div>
+                <strong>${task.id}</strong>
+                <p class="muted">${task.receiver} • ${task.status}</p>
+              </div>
+              <button class="mini-btn" data-route="shipperPayment" type="button">${task.action}</button>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function metric(label, value, symbol) {
+  return `
+    <button class="metric-card" data-route="orders" type="button">
       <span>${icon(symbol)}</span>
-      <div>
-        <strong>${title}</strong>
-        <small>${copy}</small>
+      <small>${label}</small>
+      <strong>${value}</strong>
+    </button>
+  `;
+}
+
+function orderCard(order) {
+  return `
+    <article class="rich-order-card">
+      <div class="order-topline">
+        <div>
+          <strong>${order.id} - ${order.shop}</strong>
+          <p class="muted">Ngăn ${order.locker} • ${order.status}</p>
+        </div>
+        <button class="mini-btn" data-action="selectReceiverOrder" data-order="${order.id}" type="button">Lấy hàng</button>
+      </div>
+      <div class="order-meta">
+        <span>Đã gửi: ${order.sent}</span>
+        <span>${order.remain}</span>
+        <span>Phí: ${order.fee}</span>
       </div>
     </article>
   `;
 }
 
-function login() {
-  return `
-    <div class="login-screen">
-      <button class="icon-back" data-route="home" type="button">${icon("arrow_back_ios_new")}</button>
-      <h2>Đăng nhập</h2>
-      <p class="lead center">Chọn vai trò demo để xem đúng workflow như bản prototype.</p>
-      <div class="role-grid">
-        <button class="role-card ${state.role === "resident" ? "active" : ""}" data-role="resident" type="button">
-          ${icon("home")}
-          <strong>Cư dân</strong>
-          <span>Nhận hàng, thanh toán COD, nạp ví</span>
-        </button>
-        <button class="role-card ${state.role === "shipper" ? "active" : ""}" data-role="shipper" type="button">
-          ${icon("local_shipping")}
-          <strong>Shipper</strong>
-          <span>Quét tủ, gửi hàng, nhận COD</span>
-        </button>
-      </div>
-      <button class="btn-outline" data-action="google" type="button">${icon("mail")} Đăng nhập bằng Gmail</button>
-      <button class="btn-brand" data-action="demoLogin" type="button">${icon("login")} Dùng tài khoản demo</button>
-    </div>
-  `;
-}
-
-function dashboard() {
-  return state.role === "shipper" ? shipperHome() : residentHome();
-}
-
-function residentHome() {
-  const pending = state.orders.filter((order) => order.status !== "received").length;
-  return `
-    <div class="resident-home">
-      ${walletBanner(state.receiverWallet, "receiverTopup")}
-      <section class="section-title">
-        <h2>Tủ đồ của tôi</h2>
-        <p>${pending} đơn đang chờ nhận tại SmartLocker</p>
-      </section>
-      <div class="order-list">${state.orders.map(orderCard).join("")}</div>
-      <button class="btn-brand" data-route="receiverQr" type="button">${icon("qr_code_scanner")} Quét QR tủ để nhận hàng</button>
-    </div>
-  `;
-}
-
-function walletBanner(balance, route) {
-  return `
-    <section class="wallet-banner">
-      <div>
-        ${icon("account_balance_wallet")}
-        <strong>Ví: <span>${money(balance)}</span></strong>
-      </div>
-      <button class="mini-btn" data-route="${route}" type="button">Nạp tiền</button>
-    </section>
-  `;
-}
-
-function orderCard(order) {
-  const received = order.status === "received";
-  return `
-    <button class="ref-order-card ${received ? "received" : ""}" data-order="${order.id}" type="button">
-      <span class="order-badge">${icon(order.icon || "inventory_2")}</span>
-      <span class="order-info">
-        <strong>${order.shipper}</strong>
-        <small>Tủ sảnh A (Ngăn ${order.compartment})</small>
-        <em>${received ? "Trạng thái: Đã lấy" : "Trạng thái: Chưa lấy"}</em>
-      </span>
-      ${icon("chevron_right", "chevron")}
-    </button>
-  `;
-}
-
 function orders() {
   return `
-    <div class="stack">
-      <section class="section-title">
-        <h2>Lịch sử đơn</h2>
-        <p>Theo dõi trạng thái các đơn trong tủ.</p>
-      </section>
-      <div class="order-list">${state.orders.map(orderCard).join("")}</div>
-    </div>
-  `;
-}
-
-function detail() {
-  const order = selectedOrder();
-  return `
-    <div class="detail-screen">
-      <button class="icon-back" data-route="home" type="button">${icon("arrow_back_ios_new")}</button>
-      <h2>Chi tiết Đơn</h2>
-      <article class="detail-card">
-        <div class="proof-image">
-          <img src="./assets/green-locker.png" alt="Bằng chứng giao hàng" />
-          <span>12/05/2026 14:30</span>
-        </div>
-        <div class="detail-body">
-          <h3>${order.shipper} - Ngăn ${order.compartment}</h3>
-          <div class="fee-line"><span>Tiền hàng (COD):</span><strong>${money(order.price)}</strong></div>
-          <p class="auto-note">(Hệ thống sẽ tự động trừ vào ví khi mở tủ)</p>
-          <div class="fee-line"><span>Phí lưu tủ:</span><strong class="free">Miễn phí</strong></div>
-          <p class="muted">Thời gian lưu kho miễn phí còn lại: <strong>${order.freeStorage}</strong></p>
-        </div>
-      </article>
-      <button class="btn-brand sticky-action" data-action="showOpenConfirm" type="button">${icon("lock_open")} Mở tủ lấy hàng</button>
-    </div>
-  `;
-}
-
-function receiverTopup() {
-  const amounts = [50000, 100000, 200000, 500000];
-  return `
-    <div class="topup-screen">
-      <button class="icon-back" data-route="home" type="button">${icon("arrow_back_ios_new")}</button>
-      <h2>Nạp Tiền Vào Ví</h2>
-      <form class="money-form" data-form="topup">
-        ${selectCard("Nguồn tiền", "topupSource", ["Ví MoMo", "Ví ZaloPay", "Ngân hàng Vietcombank", "Ngân hàng MBBank", "Ngân hàng TPBank"])}
-        <section class="finance-card">
-          <span class="mini-label">Tài khoản liên kết</span>
-          <div class="linked-account"><span>N</span><strong>Nguyễn Văn A</strong></div>
-        </section>
-        <section class="finance-card">
-          <span class="mini-label">Số tiền muốn nạp (VNĐ)</span>
-          <div class="amount-grid">${amounts.map((amount) => amountChip(amount, "topup", state.selectedTopupAmount)).join("")}</div>
-          <label class="currency-input"><span>đ</span><input name="customAmount" inputmode="numeric" placeholder="Hoặc nhập số tiền khác..." /></label>
-        </section>
-        <button class="btn-brand" type="submit">${icon("payments")} Xác nhận nạp tiền</button>
-      </form>
-    </div>
-  `;
-}
-
-function selectCard(label, id, options) {
-  return `
-    <section class="finance-card">
-      <label class="mini-label" for="${id}">${label}</label>
-      <select id="${id}" name="${id}">${options.map((option) => `<option>${option}</option>`).join("")}</select>
+    <section class="hero-card button-stack">
+      ${titleBlock(state.role === "shipper" ? "Đơn giao" : "Đơn hàng", state.role === "shipper" ? "Đơn đang xử lý" : "Đơn đang chờ nhận")}
+      <div class="list-stack">
+        ${state.role === "shipper"
+          ? shipperTasks.map((task) => `<article class="task-card"><span class="order-icon">${icon("local_shipping")}</span><div><strong>${task.id}</strong><p class="muted">${task.receiver} • ${task.status}</p></div><button class="mini-btn" data-route="shipperPayment" type="button">${task.action}</button></article>`).join("")
+          : receiverOrders.map(orderCard).join("")}
+      </div>
     </section>
   `;
 }
 
-function amountChip(amount, type, selected) {
-  return `<button class="amount-chip ${selected === amount ? "active" : ""}" data-${type}="${amount}" type="button">${new Intl.NumberFormat("vi-VN").format(amount)}</button>`;
-}
-
-function receiverQr() {
-  return scannerScreen("QR xác định tủ", "Đưa mã QR trên tủ vào khung", "confirmReceiverQr", "home", "qr_code_scanner");
-}
-
-function receiverChooseOrder() {
+function history() {
   return `
-    <div class="stack">
-      <button class="icon-back" data-route="receiverQr" type="button">${icon("arrow_back_ios_new")}</button>
-      <h2>Chọn đơn hàng cần nhận</h2>
-      <div class="order-list">${state.orders.filter((order) => order.status !== "received").map(orderCard).join("")}</div>
-    </div>
-  `;
-}
-
-function receiverDoorOpen() {
-  const order = selectedOrder();
-  return `
-    <div class="locker-action">
-      <h2>Trạng thái Tủ</h2>
-      <div class="door-pulse">${icon("door_open")}</div>
-      <h3>Cửa số ${order.compartment} đã mở!</h3>
-      <p>${order.price ? `Đã tự động thanh toán <strong>-${money(order.price, "đ")}</strong> (COD).` : "Không phát sinh phí thu hộ (COD)."}</p>
-      <b>Vui lòng đóng chặt cửa<br />sau khi lấy hàng.</b>
-      <div class="bottom-actions">
-        <button class="issue-btn" data-action="reportIssue" type="button">${icon("warning")} Hàng hóa có vấn đề?</button>
-        <button class="btn-brand" data-route="receiverTakeParcel" type="button">${icon("task_alt")} Xác nhận lấy hàng</button>
+    <section class="hero-card button-stack">
+      ${titleBlock("Lịch sử", state.role === "shipper" ? "Lịch sử giao hàng" : "Lịch sử nhận hàng")}
+      <div class="list-stack">
+        ${state.history.map((item) => `<article class="history-item metric-row"><div><strong>${item.title}</strong><p class="muted">${item.status}</p></div>${icon("chevron_right")}</article>`).join("")}
       </div>
-    </div>
-  `;
-}
-
-function receiverTakeParcel() {
-  const order = selectedOrder();
-  return `
-    <div class="locker-action">
-      <h2>Lấy hàng</h2>
-      <div class="door-pulse">${icon("inventory_2")}</div>
-      <h3>Lấy đơn ${order.id}</h3>
-      <p>Kiểm tra đúng đơn hàng trước khi đóng tủ.</p>
-      <button class="btn-brand sticky-action" data-route="receiverCloseLocker" type="button">${icon("door_front")} Đóng tủ</button>
-    </div>
-  `;
-}
-
-function receiverCloseLocker() {
-  return `
-    <div class="locker-action">
-      <h2>Cửa tủ đã đóng</h2>
-      <div class="door-pulse">${icon("lock")}</div>
-      <p>Hệ thống khóa lại ngăn tủ và chuyển đơn vào lịch sử.</p>
-      <button class="btn-brand sticky-action" data-action="confirmReceive" type="button">${icon("task_alt")} Hoàn tất</button>
-    </div>
-  `;
-}
-
-function receiverDone() {
-  return successScreen("task_alt", "Nhận hàng thành công!", "Đơn đã chuyển vào lịch sử. Cửa tủ đã được khóa lại sau xác nhận.", "Về trang chủ", "home");
-}
-
-function receiverCancel() {
-  return successScreen("warning", "Đã hủy giao hàng", "Yêu cầu nhận hàng đã dừng lại. Hệ thống sẽ thông báo lại cho shipper.", "Về trang chủ", "home");
-}
-
-function receiveDone() {
-  return receiverDone();
-}
-
-function shipperHome() {
-  const completed = state.orders.filter((order) => order.status === "ready" || order.status === "stored" || order.status === "received").length;
-  return `
-    <div class="shipper-home">
-      <section class="wallet-banner">
-        <div>${icon("account_balance_wallet")}<strong>Ví: <span>${money(state.shipperWallet)}</span></strong></div>
-        <button class="mini-btn" data-route="shipperWithdraw" type="button">Rút tiền</button>
-      </section>
-      <section class="earnings">
-        <p>Tổng hàng đã giao hôm nay</p>
-        <strong>${money(state.todayEarnings)}</strong>
-      </section>
-      <button class="qr-main" data-route="scanLocker" type="button">
-        ${icon("qr_code_scanner")}
-        <span>QUÉT QR<br />TRẠM TỦ</span>
-      </button>
-      <section class="shipper-stats">
-        <article><span>Cần giao</span><strong>12</strong></article>
-        <article><span>Đã hoàn thành</span><strong>${completed}</strong></article>
-        <article><span>Đơn lỗi</span><strong>0</strong></article>
-      </section>
-    </div>
-  `;
-}
-
-function scanLocker() {
-  return scannerScreen("Quét mã QR", "Đưa QR trạm tủ vào khung", "confirmLockerScan", "shipperHome", "qr_code_scanner");
-}
-
-function parcelForm() {
-  const canContinue = state.barcodeScanned;
-  return `
-    <div class="parcel-screen">
-      <button class="icon-back" data-route="shipperHome" type="button">${icon("arrow_back_ios_new")}</button>
-      <section class="locker-info">
-        <strong>${icon("pin_drop")} Mã tủ: A32</strong>
-        <small>Nhà ở xã hội Định Hòa, Bình Dương, Việt Nam</small>
-      </section>
-      <button class="scan-card" data-route="scanParcel" type="button">
-        ${icon("barcode_scanner")}
-        <strong>Quét mã vạch đơn hàng</strong>
-      </button>
-      <form class="money-form" data-form="parcel">
-        <section class="finance-card">
-          <label class="mini-label">Mã đơn hàng</label>
-          <input name="parcelCode" value="${state.draft.parcelCode}" placeholder="Quét mã để tự điền" />
-        </section>
-        <section class="finance-card">
-          <label class="mini-label">Người nhận</label>
-          <input name="receiver" value="${state.draft.receiver}" />
-        </section>
-        <section class="finance-card">
-          <label class="mini-label">Số tiền COD cần thu (VNĐ)</label>
-          <input name="amount" inputmode="numeric" value="${codValue()}" />
-        </section>
-        <button class="${canContinue ? "btn-brand" : "btn-disabled"}" ${canContinue ? "" : "disabled"} type="submit">Tiếp tục</button>
-      </form>
-    </div>
-  `;
-}
-
-function scanParcel() {
-  return scannerScreen("Quét mã đơn hàng", "Đưa mã vạch/QR đơn hàng vào khung", "confirmBarcode", "parcelForm", "barcode_scanner");
-}
-
-function chooseSize() {
-  return `
-    <div class="size-screen">
-      <button class="icon-back" data-route="parcelForm" type="button">${icon("arrow_back_ios_new")}</button>
-      <h2>Chọn Kích Thước Ngăn</h2>
-      <div class="size-grid">
-        ${["S", "M", "L"].map((size) => `<button class="size-card" data-size="${size}" type="button"><strong>${size}</strong><span>${size === "S" ? "Ngăn nhỏ" : size === "M" ? "Ngăn trung" : "Ngăn lớn"}</span></button>`).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function shipperConfirm() {
-  const cod = codValue();
-  return `
-    <div class="confirm-screen">
-      <h2>Xác minh giao hàng</h2>
-      <section class="dropoff-card ${state.dropoffPhotoCaptured ? "captured" : ""}">
-        <div class="dropoff-status">${state.dropoffPhotoCaptured ? "ĐÃ LƯU ẢNH MINH CHỨNG" : `ĐANG MỞ: NGĂN ${state.draft.size} - SỐ 05`}</div>
-        <div class="dropoff-photo"></div>
-        ${state.dropoffPhotoCaptured ? `
-          <div class="success-mini">
-            ${icon("task_alt")}
-            <strong>Giao hàng thành công!</strong>
-            <span>Tiền COD (+${money(cod, "đ")}) sẽ được cộng vào ví.</span>
-          </div>
-        ` : `
-          <div class="dropoff-instruction">
-            <p>Bỏ hàng vào tủ<br />rồi <strong>ĐÓNG TỦ</strong></p>
-            <button class="btn-brand" data-action="captureDropoff" type="button">${icon("photo_camera")} Xác nhận đã giao</button>
-          </div>
-        `}
-      </section>
-      <button class="${state.dropoffPhotoCaptured ? "btn-outline" : "btn-disabled"}" ${state.dropoffPhotoCaptured ? "" : "disabled"} data-action="confirmDropoff" type="button">Hoàn thành giao hàng</button>
-    </div>
-  `;
-}
-
-function shipperDone() {
-  const cod = state.lastCod || codValue();
-  return successScreen("task_alt", "Giao hàng thành công!", `Đã chụp ảnh minh chứng. Tiền COD (+${money(cod, "đ")}) đã được cộng vào ví.`, "Giao đơn tiếp theo", "shipperHome");
-}
-
-function shipperHistory() {
-  const delivered = state.orders.filter((order) => order.status === "ready" || order.status === "stored" || order.status === "received");
-  return `
-    <div class="history-screen">
-      <section class="history-summary">
-        <span>Đã hoàn thành</span>
-        <strong>${delivered.length}</strong>
-        <small>COD đã thu: ${money(delivered.reduce((sum, order) => sum + order.price, 0))}</small>
-      </section>
-      <div class="delivery-list">
-        ${delivered.map((order) => `
-          <article class="delivery-card">
-            ${icon("task_alt")}
-            <div><strong>${order.id}</strong><span>${order.receiver}</span><small>Ngăn ${order.compartment}</small></div>
-            <b>${money(order.price)}</b>
-          </article>
-        `).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function shipperWithdraw() {
-  const amounts = [50000, 100000, 200000];
-  return `
-    <div class="topup-screen">
-      <button class="icon-back" data-route="shipperHome" type="button">${icon("arrow_back_ios_new")}</button>
-      <h2>Rút Tiền</h2>
-      <form class="money-form" data-form="withdraw">
-        ${selectCard("Chuyển về", "withdrawTarget", ["Ví MoMo", "Ví ZaloPay", "Ngân hàng Vietcombank", "Ngân hàng MBBank"])}
-        <section class="finance-card">
-          <span class="mini-label">Số dư khả dụng</span>
-          <strong class="available-money">${money(state.shipperWallet)}</strong>
-          <div class="amount-grid">
-            ${amounts.map((amount) => amountChip(amount, "withdraw", state.selectedWithdrawAmount)).join("")}
-            <button class="amount-chip ${state.selectedWithdrawAmount === state.shipperWallet ? "active" : ""}" data-withdraw="${state.shipperWallet}" type="button">Rút hết</button>
-          </div>
-        </section>
-        <button class="btn-brand" type="submit">${icon("payments")} Rút tiền ngay</button>
-      </form>
-    </div>
-  `;
-}
-
-function scannerScreen(title, copy, action, backRoute, symbol) {
-  return `
-    <div class="scanner-screen">
-      <button class="scanner-back" data-route="${backRoute}" type="button">${icon("arrow_back_ios_new")}</button>
-      <h2>${title}</h2>
-      <div class="scan-stage">
-        <div class="scan-frame">
-          <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
-          ${icon(symbol)}
-          <i></i>
-        </div>
-        <p>${copy}</p>
-      </div>
-      <button class="btn-brand" data-action="${action}" type="button">${icon("check_circle")} Xác nhận mã</button>
-    </div>
-  `;
-}
-
-function successScreen(symbol, title, copy, button, route) {
-  return `
-    <div class="success-panel">
-      <div class="success-icon">${icon(symbol)}</div>
-      <h2>${title}</h2>
-      <p>${copy}</p>
-      <button class="btn-brand" data-route="${route}" type="button">${button}</button>
-    </div>
+    </section>
   `;
 }
 
 function profile() {
   return `
-    <div class="profile-screen">
-      <h2>Tài khoản</h2>
-      <section class="finance-card">
-        <div class="fee-line"><span>Vai trò</span><strong>${state.role === "shipper" ? "Shipper" : "Cư dân"}</strong></div>
-        <div class="fee-line"><span>Email</span><strong>${state.user?.email || "demo@smartlocker.vn"}</strong></div>
-        <div class="fee-line"><span>Backend</span><strong>${hasSupabase ? "Supabase" : "Demo local"}</strong></div>
+    <section class="hero-card button-stack">
+      ${titleBlock("Tài khoản", state.user?.name || "Nguyễn Văn A", hasSupabase ? "Supabase đã cấu hình." : "Đang chạy demo trên máy.")}
+      <div class="metric-row"><span>Vai trò</span><strong>${state.role === "shipper" ? "Người giao hàng" : "Cư dân"}</strong></div>
+      <div class="metric-row"><span>Email</span><strong>${state.user?.email || "demo@smartlocker.vn"}</strong></div>
+      <div class="metric-row"><span>Trạng thái</span><strong>${state.role === "shipper" ? "Đã duyệt" : "Đã xác thực"}</strong></div>
+      <button class="secondary-btn" data-action="switchRole" type="button">Đổi vai trò demo</button>
+      <button class="secondary-btn" data-action="googleLogin" type="button">${icon("mail")} Đăng nhập bằng Gmail</button>
+    </section>
+  `;
+}
+
+function scannerScreen(label, title, copy, action, backRoute) {
+  return `
+    <div class="page">
+      ${progress(state.currentStep + 1)}
+      <section class="hero-card button-stack">
+        ${titleBlock(label, title, copy)}
+        <div class="camera-card">
+          <div class="scan-frame">
+            <span class="corner-a"></span><span class="corner-b"></span>
+            ${icon("qr_code_scanner")}
+          </div>
+        </div>
+        <div class="choice-grid">
+          <button class="secondary-btn" data-action="manualLocker" type="button">${icon("pin")} Nhập mã tủ thủ công</button>
+          <button class="primary-btn" data-action="${action}" type="button">Quét QR tủ</button>
+        </div>
+        <button class="mini-btn" data-route="${backRoute}" type="button">Quay lại</button>
       </section>
-      <button class="btn-outline" data-action="switchRole" type="button">Đổi vai trò demo</button>
-      <button class="danger-btn" data-action="logout" type="button">Đăng xuất</button>
     </div>
   `;
 }
 
-function bindView() {
-  view.querySelectorAll("[data-route]").forEach((button) => {
-    button.addEventListener("click", () => setRoute(button.dataset.route));
-  });
-
-  view.querySelectorAll("[data-role]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.role = button.dataset.role;
-      localStorage.setItem("smartlocker.role", state.role);
-      showToast(`Đã chọn vai trò ${state.role === "shipper" ? "shipper" : "cư dân"}`);
-      render();
-    });
-  });
-
-  view.querySelectorAll("[data-order]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selectedOrderId = button.dataset.order;
-      setRoute(state.route === "receiverChooseOrder" ? "detail" : "detail");
-    });
-  });
-
-  view.querySelectorAll("[data-size]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.draft.size = button.dataset.size;
-      setRoute("shipperConfirm");
-    });
-  });
-
-  view.querySelectorAll("[data-topup]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selectedTopupAmount = Number(button.dataset.topup) || 0;
-      render();
-    });
-  });
-
-  view.querySelectorAll("[data-withdraw]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selectedWithdrawAmount = Number(button.dataset.withdraw) || 0;
-      render();
-    });
-  });
-
-  const parcelFormEl = view.querySelector('[data-form="parcel"]');
-  if (parcelFormEl) {
-    parcelFormEl.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const data = new FormData(parcelFormEl);
-      state.draft.parcelCode = data.get("parcelCode") || state.draft.parcelCode;
-      state.draft.receiver = data.get("receiver") || state.draft.receiver;
-      state.draft.amount = data.get("amount") || "0";
-      setRoute("chooseSize");
-    });
-  }
-
-  const topupForm = view.querySelector('[data-form="topup"]');
-  if (topupForm) {
-    topupForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const data = new FormData(topupForm);
-      const customAmount = Number(String(data.get("customAmount") || "").replace(/\D/g, ""));
-      const amount = customAmount || state.selectedTopupAmount;
-      if (amount < 10000) {
-        showToast("Vui lòng chọn hoặc nhập số tiền nạp tối thiểu 10.000đ");
-        return;
-      }
-      state.receiverWallet += amount;
-      state.selectedTopupAmount = 0;
-      showToast(`Nạp tiền thành công ${money(amount, "đ")}`);
-      setRoute("home");
-    });
-  }
-
-  const withdrawForm = view.querySelector('[data-form="withdraw"]');
-  if (withdrawForm) {
-    withdrawForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const amount = state.selectedWithdrawAmount;
-      if (!amount || amount > state.shipperWallet) {
-        showToast("Vui lòng chọn số tiền rút hợp lệ");
-        return;
-      }
-      state.shipperWallet -= amount;
-      state.selectedWithdrawAmount = 0;
-      showToast(`Rút thành công ${money(amount, "đ")}`);
-      setRoute("shipperHome");
-    });
-  }
-
-  view.querySelectorAll("[data-action]").forEach((button) => {
-    button.addEventListener("click", () => handleAction(button.dataset.action));
-  });
+function receiverQr() {
+  state.currentStep = 0;
+  return scannerScreen("Quét QR", "Quét mã QR dán trên tủ", "Sau khi nhận diện, hệ thống sẽ xác định vị trí tủ và ngăn cần mở.", "receiverQrDone", "home");
 }
 
-async function handleAction(action) {
-  if (action === "login") setRoute("login");
-  if (action === "demoLogin") {
-    state.user = { email: state.role === "shipper" ? "shipper@smartlocker.vn" : "resident@smartlocker.vn" };
-    if (accountName) accountName.textContent = "demo_account";
-    setRoute(state.role === "shipper" ? "shipperHome" : "home");
+function receiverOrdersScreen() {
+  state.currentStep = 1;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(2)}
+      ${titleBlock("Chọn đơn", "Đơn đang chờ nhận", "Chọn đúng đơn cần lấy sau khi đã quét tủ.")}
+      <div class="list-stack">${receiverOrders.map(orderCard).join("")}</div>
+      <button class="secondary-btn" data-route="receiverHelper" type="button">${icon("group")} Lấy hộ người khác</button>
+    </section>
+  `;
+}
+
+function receiverHelper() {
+  state.currentStep = 1;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(2)}
+      ${titleBlock("Lấy hộ người khác", "Nhập thông tin xác thực", "Mã mở tủ gồm 4 đến 6 chữ số do người nhận cung cấp.")}
+      <div class="form-stack">
+        ${field("Số điện thoại người nhận", "helperPhone", "0901234567")}
+        ${field("Mã mở tủ", "helperCode", "1234")}
+      </div>
+      <button class="primary-btn" data-route="receiverProcess" type="button">Xác thực và mở tủ</button>
+      <button class="secondary-btn" data-route="home" type="button">Quay về trang chủ</button>
+    </section>
+  `;
+}
+
+function receiverProcess() {
+  state.currentStep = 2;
+  const order = receiverOrders.find((item) => item.id === state.selectedOrderId) || receiverOrders[0];
+  return `
+    <section class="hero-card button-stack">
+      ${progress(3)}
+      ${titleBlock("Đang xử lý nhận hàng", `Ngăn ${order.locker} đã mở`, "Vui lòng lấy hàng ra khỏi tủ rồi đóng cửa lại.")}
+      ${statusTimeline([
+        ["done", "Xác thực đơn hàng"],
+        ["done", "Gửi lệnh mở tủ"],
+        ["current", "Chờ bạn lấy hàng và đóng cửa"],
+        ["todo", "Cập nhật trạng thái"],
+      ])}
+      <button class="primary-btn" data-route="receiverClose" type="button">${icon("inventory_2")} Tôi đã lấy hàng</button>
+    </section>
+  `;
+}
+
+function receiverClose() {
+  state.currentStep = 4;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(5)}
+      ${titleBlock("Đóng cửa tủ", "Cửa tủ đang mở", "Vui lòng đóng cửa tủ để hoàn tất nhận hàng.")}
+      <div class="door-state warning">${icon("door_open")} Cửa tủ A12 đang mở</div>
+      <button class="primary-btn" data-route="receiverDoorCheck" type="button">${icon("door_front")} Tôi đã đóng cửa</button>
+    </section>
+  `;
+}
+
+function receiverDoorCheck() {
+  state.currentStep = 4;
+  if (state.doorAttempt === 0) {
+    return alertScreen(5, 6, "Cửa tủ chưa đóng", "Hãy đóng cửa tủ để hoàn tất nhận hàng.", "receiverDoorRetry");
   }
-  if (action === "google") await signInWithGoogle();
-  if (action === "confirmLockerScan") {
-    showToast("Đã xác nhận trạm tủ A32");
-    setRoute("parcelForm");
+  return `
+    <section class="hero-card button-stack">
+      ${progress(5)}
+      ${titleBlock("Cửa tủ đã đóng", "Đang hoàn tất nhận hàng", "Hệ thống cập nhật trạng thái đơn hàng và chuyển ngăn tủ về trạng thái trống.")}
+      ${statusTimeline([
+        ["done", "Kiểm tra cửa tủ"],
+        ["done", "Cập nhật trạng thái: Đã lấy hàng"],
+        ["done", "Ngăn tủ về trạng thái trống"],
+      ])}
+      <button class="primary-btn" data-route="receiverDone" type="button">Hoàn tất</button>
+    </section>
+  `;
+}
+
+function receiverDone() {
+  state.currentStep = 5;
+  return successScreen(6, 6, "Nhận hàng thành công", `${state.selectedOrderId} đã được cập nhật: Đã lấy hàng.`, "Về trang chủ", "home");
+}
+
+function shipperQr() {
+  state.currentStep = 0;
+  return scannerScreen("Quét QR", "Quét QR tủ để giao hàng", "Xác định đúng trạm tủ trước khi nhập vận đơn.", "shipperQrDone", "home");
+}
+
+function shipperLogin() {
+  state.currentStep = 1;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(2)}
+      ${titleBlock("Đăng nhập", "Xác thực người giao hàng", "Chế độ demo: tài khoản đã được duyệt để giao hàng.")}
+      <div class="form-stack">
+        ${field("Số điện thoại", "helperPhone", "0901234567")}
+        ${field("Mã OTP", "helperCode", "123456")}
+      </div>
+      <button class="primary-btn" data-action="shipperLoginDone" type="button">Đăng nhập</button>
+    </section>
+  `;
+}
+
+function shipperParcel() {
+  state.currentStep = 2;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(3)}
+      ${titleBlock("Vận đơn", "Nhập hoặc quét mã vận đơn", "Thông tin người nhận dùng để gửi thông báo và mã mở tủ.")}
+      <div class="form-stack">
+        ${field("Mã vận đơn", "parcelCode", "DH118")}
+        ${field("Số điện thoại người nhận", "receiverPhone", "0901234567")}
+        ${field("Tên người nhận", "receiverName", "Nguyễn Văn A")}
+        <div class="field"><label>Ghi chú</label><textarea data-field="note" placeholder="Ghi chú nếu có">${state.draft.note}</textarea></div>
+      </div>
+      <button class="primary-btn" data-route="shipperPayment" type="button">Kiểm tra thanh toán</button>
+    </section>
+  `;
+}
+
+function shipperPayment() {
+  state.currentStep = 3;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(4)}
+      ${titleBlock("Thanh toán", "Đang kiểm tra thanh toán", "Chọn kết quả demo để đi tiếp nhánh giao hàng.")}
+      <div class="status-card compact-status">
+        <div class="spinner"></div>
+        <h3>Đang kiểm tra thanh toán...</h3>
+      </div>
+      <div class="choice-grid">
+        <button class="primary-btn" data-action="paymentPaid" type="button">Đơn đã thanh toán</button>
+        <button class="secondary-btn" data-action="paymentUnpaid" type="button">Đơn chưa thanh toán</button>
+      </div>
+    </section>
+  `;
+}
+
+function shipperPaymentWaiting() {
+  state.currentStep = 3;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(4)}
+      ${titleBlock("Đơn chưa thanh toán", "Đã gửi thông báo cho người nhận", "Chờ người nhận thanh toán trước khi bỏ hàng vào tủ.")}
+      <div class="choice-grid">
+        <button class="primary-btn" data-action="receiverPays" type="button">Người nhận đã thanh toán</button>
+        <button class="danger-btn" data-route="shipperCancelled" type="button">Hủy giao hàng</button>
+      </div>
+    </section>
+  `;
+}
+
+function shipperCancelled() {
+  state.currentStep = 3;
+  return successScreen(4, 9, "Giao hàng bị hủy", "Đơn hàng chưa thanh toán. Thông báo hủy đã gửi cho người giao hàng.", "Quay về trang chủ", "home", "warning");
+}
+
+function shipperChooseCompartment() {
+  state.currentStep = 4;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(5)}
+      ${titleBlock("Chọn ngăn tủ", "Chọn kích thước và ngăn khả dụng", "Chỉ chọn ngăn sau khi đơn đã thanh toán.")}
+      <div class="choice-grid">
+        ${["Nhỏ", "Vừa", "Lớn"].map((size) => `<button class="secondary-btn" data-action="chooseSize" data-size="${size}" type="button">${size}</button>`).join("")}
+      </div>
+      <div class="list-stack">
+        ${["A01 - Nhỏ", "A04 - Vừa", "B02 - Lớn"].map((slot) => `<button class="order-card" data-action="chooseSlot" data-slot="${slot}" type="button"><span class="order-icon">${icon("inventory")}</span><span><strong>${slot}</strong><small class="muted">Còn trống</small></span>${icon("chevron_right")}</button>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function shipperDropoff() {
+  state.currentStep = 5;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(6)}
+      ${titleBlock("Bỏ hàng vào tủ", "Ngăn A04 đã mở", "Chụp minh chứng sau khi bỏ đúng kiện hàng vào tủ.")}
+      <div class="proof-card">
+        <span>${icon("photo_camera")}</span>
+        <div>
+          <strong>Mã vận đơn: ${state.draft.parcelCode}</strong>
+          <p class="muted">Ngăn A04 • Người nhận: ${state.draft.receiverName}</p>
+        </div>
+      </div>
+      <div class="choice-grid">
+        <button class="secondary-btn" data-action="photoProof" type="button">${icon("photo_camera")} Chụp ảnh minh chứng</button>
+        <button class="primary-btn" data-route="shipperClose" type="button">Xác nhận đã bỏ hàng</button>
+      </div>
+    </section>
+  `;
+}
+
+function shipperClose() {
+  state.currentStep = 6;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(7)}
+      ${titleBlock("Đóng cửa tủ", "Vui lòng đóng cửa ngăn A04", "Hệ thống chỉ hoàn tất khi cửa tủ đã đóng.")}
+      <div class="door-state warning">${icon("door_open")} Cửa ngăn A04 đang mở</div>
+      <button class="primary-btn" data-route="shipperDoorCheck" type="button">${icon("door_front")} Tôi đã đóng cửa</button>
+    </section>
+  `;
+}
+
+function shipperDoorCheck() {
+  state.currentStep = 6;
+  if (state.doorAttempt === 0) {
+    return alertScreen(7, 9, "Cửa tủ chưa đóng", "Vui lòng đóng cửa lại để hoàn tất giao hàng.", "shipperDoorRetry");
   }
-  if (action === "confirmBarcode") {
-    state.barcodeScanned = true;
-    state.draft.parcelCode = "435962506434";
-    state.draft.amount = "150000";
-    showToast("Đã nhận mã vận đơn và COD");
-    setRoute("parcelForm");
+  state.currentStep = 7;
+  return `
+    <section class="hero-card button-stack">
+      ${progress(8)}
+      ${titleBlock("Đang cập nhật giao hàng", "Cửa tủ đã đóng", "Hệ thống cập nhật trạng thái, gửi mã mở tủ và cộng thưởng.")}
+      ${statusTimeline([
+        ["done", "Cập nhật trạng thái: Đã giao hàng"],
+        ["done", `Gửi mã mở tủ ${state.otp} cho cư dân`],
+        ["done", "Ngăn tủ chuyển sang trạng thái đang chứa hàng"],
+        ["done", "Cộng thưởng 700đ"],
+      ])}
+      <button class="primary-btn" data-route="shipperDone" type="button">Hoàn tất</button>
+    </section>
+  `;
+}
+
+function shipperDone() {
+  state.currentStep = 8;
+  return successScreen(9, 9, "Giao hàng thành công", `Mã mở tủ ${state.otp} đã được gửi cho cư dân. Bạn nhận: 700đ.`, "Giao đơn tiếp theo", "shipperQr");
+}
+
+function statusTimeline(items) {
+  return `
+    <div class="status-timeline">
+      ${items.map(([type, text]) => `<div class="${type}"><span>${type === "done" ? icon("task_alt") : type === "current" ? icon("pending") : icon("radio_button_unchecked")}</span><strong>${text}</strong></div>`).join("")}
+    </div>
+  `;
+}
+
+function field(label, key, placeholder) {
+  const value = key in state.draft ? state.draft[key] : state[key] || "";
+  return `<div class="field"><label>${label}</label><input data-field="${key}" value="${value}" placeholder="${placeholder}" /></div>`;
+}
+
+function alertScreen(step, total, title, copy, action) {
+  return `
+    <section class="alert-card">
+      ${progress(step, total)}
+      <h2>${title}</h2>
+      <p>${copy}</p>
+      <div class="choice-grid">
+        <button class="danger-btn" data-action="${action}" type="button">Kiểm tra lại</button>
+        <button class="secondary-btn" data-route="profile" type="button">Gọi hỗ trợ</button>
+      </div>
+    </section>
+  `;
+}
+
+function successScreen(step, total, title, copy, button, route, symbol = "task_alt") {
+  return `
+    <section class="hero-card button-stack">
+      ${progress(step, total)}
+      <div class="status-card">
+        <div class="success-icon">${icon(symbol)}</div>
+        <h2>${title}</h2>
+        <p class="lead">${copy}</p>
+      </div>
+      <div class="choice-grid">
+        <button class="primary-btn" data-route="${route}" type="button">${button}</button>
+        <button class="secondary-btn" data-route="history" type="button">Xem lịch sử</button>
+      </div>
+    </section>
+  `;
+}
+
+async function handleAction(action, button) {
+  if (action === "quickScan") setRoute(state.role === "shipper" ? "shipperQr" : "receiverQr");
+  if (action === "manualLocker") showToast("Demo: đã nhập mã tủ B-04");
+  if (action === "googleLogin") await signInWithGoogle();
+  if (action === "receiverQrDone") {
+    showToast("Đã xác định tủ: Sảnh A - Tầng 1");
+    setRoute("receiverOrdersScreen");
   }
-  if (action === "showOpenConfirm") {
-    const order = selectedOrder();
-    if (state.receiverWallet < order.price) {
-      showToast(`Số dư không đủ. Vui lòng nạp thêm tiền để thanh toán COD ${money(order.price, "đ")}`);
-      setRoute("receiverTopup");
-      return;
-    }
-    state.receiverWallet -= order.price;
-    setRoute("receiverDoorOpen");
+  if (action === "selectReceiverOrder") {
+    state.selectedOrderId = button.dataset.order;
+    setRoute("receiverProcess");
   }
-  if (action === "confirmReceiverQr") {
-    showToast("Đã xác định tủ sảnh A");
-    setRoute("receiverChooseOrder");
+  if (action === "receiverDoorRetry") {
+    state.doorAttempt = 1;
+    setRoute("receiverDoorCheck");
   }
-  if (action === "confirmReceive") {
-    const order = selectedOrder();
-    order.status = "received";
-    persistOrders();
-    setRoute("receiverDone");
+  if (action === "shipperQrDone") {
+    showToast("Đã xác định tủ giao hàng B-04");
+    setRoute("shipperLogin");
   }
-  if (action === "reportIssue") showToast("Đã ghi nhận báo cáo sự cố cho đơn hàng");
-  if (action === "captureDropoff") {
-    state.dropoffPhotoCaptured = true;
-    showToast("Đã lưu ảnh minh chứng");
-    render();
+  if (action === "shipperLoginDone") setRoute("shipperParcel");
+  if (action === "paymentPaid" || action === "receiverPays") setRoute("shipperChooseCompartment");
+  if (action === "paymentUnpaid") setRoute("shipperPaymentWaiting");
+  if (action === "chooseSize") {
+    state.draft.size = button.dataset.size;
+    showToast(`Đã chọn kích thước ${button.dataset.size}`);
   }
-  if (action === "confirmDropoff") {
-    await createParcel();
-    const cod = codValue();
-    state.lastCod = cod;
-    state.shipperWallet += cod;
-    state.todayEarnings += cod;
-    state.barcodeScanned = false;
-    state.dropoffPhotoCaptured = false;
-    state.draft.amount = "0";
-    setRoute("shipperDone");
+  if (action === "chooseSlot") {
+    state.draft.compartment = button.dataset.slot;
+    setRoute("shipperDropoff");
+  }
+  if (action === "photoProof") showToast("Đã lưu ảnh minh chứng demo");
+  if (action === "shipperDoorRetry") {
+    state.doorAttempt = 1;
+    setRoute("shipperDoorCheck");
   }
   if (action === "switchRole") {
     state.role = state.role === "shipper" ? "resident" : "shipper";
-    localStorage.setItem("smartlocker.role", state.role);
-    setRoute("home");
-  }
-  if (action === "logout") {
-    if (supabaseClient) await supabaseClient.auth.signOut();
-    state.user = null;
     setRoute("home");
   }
 }
 
 async function signInWithGoogle() {
-  if (!supabaseClient) {
+  if (!hasSupabase) {
     showToast("Chưa cấu hình Supabase. Đang dùng demo local.");
     return;
   }
-  const redirectTo = window.location.origin + window.location.pathname;
-  const { error } = await supabaseClient.auth.signInWithOAuth({
+  await supabaseClient.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo },
+    options: { redirectTo: window.location.origin + window.location.pathname },
   });
-  if (error) showToast(error.message);
 }
 
-async function hydrateAuth() {
-  if (!supabaseClient) return;
-  const { data } = await supabaseClient.auth.getUser();
-  if (data?.user) {
-    state.user = data.user;
-    if (accountName) accountName.textContent = data.user.email?.split("@")[0] || "account";
-    setRoute("home");
+document.addEventListener("click", (event) => {
+  const actionButton = event.target.closest("[data-action]");
+  const routeButton = event.target.closest("[data-route]");
+  if (actionButton) {
+    event.preventDefault();
+    handleAction(actionButton.dataset.action, actionButton);
+    return;
   }
-}
-
-async function createParcel() {
-  const cod = codValue();
-  const order = {
-    id: state.draft.parcelCode || `SL-${Date.now().toString().slice(-5)}`,
-    shipper: "SmartLocker Delivery",
-    receiver: state.draft.receiver,
-    price: cod,
-    size: state.draft.size,
-    compartment: "05",
-    status: "ready",
-    freeStorage: "6 giờ 00 phút",
-    icon: "inventory_2",
-    created_at: new Date().toISOString(),
-  };
-  state.orders.unshift(order);
-  state.selectedOrderId = order.id;
-  persistOrders();
-
-  if (supabaseClient) {
-    await supabaseClient.from("parcels").insert({
-      code: order.id,
-      recipient_name: order.receiver,
-      recipient_phone: state.draft.phone,
-      size: order.size,
-      locker_code: "A32",
-      compartment_number: order.compartment,
-      cod_amount: cod,
-      status: "stored",
-    });
+  if (routeButton) {
+    event.preventDefault();
+    setRoute(routeButton.dataset.route);
   }
-}
-
-document.querySelectorAll(".nav-item").forEach((item) => {
-  item.addEventListener("click", () => setRoute(item.dataset.route));
 });
 
-hydrateAuth();
-render();
+document.addEventListener("input", (event) => {
+  const fieldKey = event.target.dataset.field;
+  if (!fieldKey) return;
+  if (fieldKey in state.draft) state.draft[fieldKey] = event.target.value;
+  else state[fieldKey] = event.target.value;
+});
+
+(async function init() {
+  if (hasSupabase) {
+    const { data } = await supabaseClient.auth.getUser();
+    if (data?.user) {
+      state.user = {
+        name: data.user.email?.split("@")[0] || "google_user",
+        email: data.user.email,
+      };
+    }
+  }
+  render();
+})();

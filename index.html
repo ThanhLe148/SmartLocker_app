@@ -16,34 +16,49 @@
   </head>
   <body>
     <main class="app-shell">
-      <section class="phone" aria-label="SmartLocker app">
-        <header class="topbar">
-          <strong>SmartLocker</strong>
-          <div class="account-pill">
-            <span id="roleBadge" class="role-badge">Cư dân</span>
-            <span id="accountName">demo_account</span>
-            <span class="avatar">T</span>
-          </div>
-        </header>
+      <header class="topbar">
+        <button class="brand" data-route="home" type="button">
+          <span class="brand-mark">SL</span>
+          <span>
+            <strong>SmartLocker</strong>
+            <small>Mạng lưới tủ khóa thông minh</small>
+          </span>
+        </button>
+        <div class="account-pill">
+          <span id="roleBadge" class="role-badge">Cư dân</span>
+          <span id="accountName">Nguyễn Văn A</span>
+          <span class="avatar">T</span>
+        </div>
+      </header>
 
-        <section id="view" class="screen"></section>
-
-        <nav class="bottom-nav" aria-label="Điều hướng chính">
-          <button class="nav-item active" data-route="home" type="button">
-            <span class="material-symbols-outlined nav-icon">home</span>
-            <span>Trang chủ</span>
-          </button>
-          <button class="nav-item" data-route="orders" type="button">
-            <span class="material-symbols-outlined nav-icon">history</span>
-            <span id="ordersNavLabel">Đơn hàng</span>
-          </button>
-          <button class="nav-item" data-route="profile" type="button">
-            <span class="material-symbols-outlined nav-icon">account_circle</span>
-            <span>Tài khoản</span>
-          </button>
-        </nav>
+      <section class="workspace">
+        <section id="view" class="screen" aria-live="polite"></section>
+        <aside id="stepPanel" class="step-panel" aria-label="Tiến trình workflow"></aside>
       </section>
     </main>
+
+    <nav class="bottom-nav" aria-label="Điều hướng chính">
+      <button class="nav-item active" data-route="home" type="button">
+        <span class="material-symbols-outlined nav-icon">home</span>
+        <span>Trang chủ</span>
+      </button>
+      <button class="nav-item" data-route="orders" type="button">
+        <span class="material-symbols-outlined nav-icon">inventory_2</span>
+        <span id="ordersNavLabel">Đơn hàng</span>
+      </button>
+      <button class="nav-item nav-scan" data-action="quickScan" type="button">
+        <span class="material-symbols-outlined nav-icon">qr_code_scanner</span>
+        <span>Quét QR</span>
+      </button>
+      <button class="nav-item" data-route="history" type="button">
+        <span class="material-symbols-outlined nav-icon">history</span>
+        <span id="historyNavLabel">Lịch sử</span>
+      </button>
+      <button class="nav-item" data-route="profile" type="button">
+        <span class="material-symbols-outlined nav-icon">account_circle</span>
+        <span>Tài khoản</span>
+      </button>
+    </nav>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./app.js"></script>
