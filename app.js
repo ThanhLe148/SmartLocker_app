@@ -706,20 +706,28 @@ function shipperCancelled() {
 }
 
 function shipperChooseCompartment() {
-  state.currentStep = 5;
-  return `
-    <section class="hero-card button-stack">
-      ${backButton("shipperPayment", "Quay về thanh toán")}
-      ${progress(6)}
-      ${titleBlock("Chọn ngăn tủ", `Kích thước đang chọn: ${state.draft.size}`, "Bấm Nhỏ / Vừa / Lớn để lọc các ngăn còn trống tương ứng.")}
-      <div class="choice-grid">
-        ${["Nhỏ", "Vừa", "Lớn"].map((size) => `<button class="${state.draft.size === size ? "primary-btn" : "secondary-btn"}" data-action="chooseSize" data-size="${size}" type="button">${size}</button>`).join("")}
-      </div>
-      <div class="list-stack">
-        ${compartmentSlots[state.draft.size].map((slot) => `<button class="order-card" data-action="chooseSlot" data-slot="${slot}" type="button"><span class="order-icon">${icon("inventory")}</span><span><strong>Ngăn ${slot}</strong><small class="muted">Còn trống • ${state.draft.size}</small></span>${icon("chevron_right")}</button>`).join("")}
-      </div>
-    </section>
-  `;
+  state.currentStep = 5;
+  // Gộp tất cả các ngăn tủ từ mọi kích thước (Nhỏ, Vừa, Lớn) thành một danh sách
+  const allSlotsHtml = Object.entries(compartmentSlots).map(([size, slots]) => {
+    return slots.map(slot => 
+      `<button class="order-card" data-action="chooseSlot" data-slot="${slot}" type="button">
+        <span class="order-icon">${icon("inventory")}</span>
+        <span><strong>Ngăn ${slot}</strong><small class="muted">Còn trống • ${size}</small></span>
+        ${icon("chevron_right")}
+      </button>`
+    ).join("");
+  }).join("");
+
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("shipperPayment", "Quay về thanh toán")}
+      ${progress(6)}
+      ${titleBlock("Chọn ngăn tủ", "Tất cả các ngăn còn trống", "Chọn trực tiếp một ngăn tủ phù hợp với kiện hàng của bạn.")}
+      <div class="list-stack">
+        ${allSlotsHtml}
+      </div>
+    </section>
+  `;
 }
 
 function shipperDropoff() {
