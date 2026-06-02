@@ -17,18 +17,18 @@
   <body>
     <main class="app-shell">
       <header class="topbar">
-        <button class="brand" data-route="home" type="button">
+        <button class="brand" data-route="lockerScan" type="button">
           <span class="brand-mark">SL</span>
           <span>
             <strong>SmartLocker</strong>
             <small>Mạng lưới tủ khóa thông minh</small>
           </span>
         </button>
-        <div class="account-pill">
-          <span id="roleBadge" class="role-badge">Cư dân</span>
-          <span id="accountName">Nguyễn Văn A</span>
+        <button class="account-pill account-button" data-route="profile" type="button">
+          <span id="roleBadge" class="role-badge">Chưa đăng nhập</span>
+          <span id="accountName">Đăng nhập</span>
           <span class="avatar">T</span>
-        </div>
+        </button>
       </header>
 
       <section class="workspace">
@@ -46,13 +46,17 @@
         <span class="material-symbols-outlined nav-icon">inventory_2</span>
         <span id="ordersNavLabel">Đơn hàng</span>
       </button>
-      <button class="nav-item nav-scan" data-action="quickScan" type="button">
+      <button class="nav-item nav-scan" data-route="lockerScan" type="button">
         <span class="material-symbols-outlined nav-icon">qr_code_scanner</span>
-        <span>Quét QR</span>
+        <span>Quét tủ</span>
       </button>
       <button class="nav-item" data-route="history" type="button">
         <span class="material-symbols-outlined nav-icon">history</span>
         <span id="historyNavLabel">Lịch sử</span>
+      </button>
+      <button class="nav-item" data-route="lockerMap" type="button">
+        <span class="material-symbols-outlined nav-icon">map</span>
+        <span>Bản đồ</span>
       </button>
       <button class="nav-item" data-route="profile" type="button">
         <span class="material-symbols-outlined nav-icon">account_circle</span>
