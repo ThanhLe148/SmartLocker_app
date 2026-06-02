@@ -207,7 +207,6 @@ function stepper() {
       <div class="stack">
         <span class="eyebrow">Bắt đầu tại tủ</span>
         <h3>Quét mã block tủ</h3>
-        <p class="muted">Mỗi block tủ có một mã duy nhất. Sau khi quét, web-app hiển thị vị trí tủ và cho chọn vai trò.</p>
         ${lockerSummary()}
       </div>
     `;
@@ -320,7 +319,6 @@ function lockerLocation() {
       <section class="action-panel">
         <div>
           <h2>Vị trí tủ đã sẵn sàng</h2>
-          <p class="muted">Các thao tác tiếp theo sẽ chỉ lấy danh sách đơn và ngăn trống tại block tủ này.</p>
         </div>
         <div class="choice-grid">
           <button class="secondary-btn" data-route="lockerMap" type="button">${icon("map")} Xem bản đồ tủ</button>
@@ -336,7 +334,7 @@ function lockerMap() {
     <div class="page">
       ${backButton("lockerLocation", "Quay về vị trí tủ")}
       <section class="hero-card button-stack">
-        ${titleBlock("Bản đồ tủ", "Mạng lưới SmartLocker", "Giai đoạn hiện tại có một block tủ tại Khu nhà ở xã hội Định Hòa. Bản đồ nhiều điểm tủ sẽ được cập nhật khi mở rộng.")}
+        ${titleBlock("Bản đồ tủ", "Mạng lưới SmartLocker")}
         <div class="map-preview">
           <div class="map-grid"></div>
           <div class="map-pin active">
@@ -364,7 +362,7 @@ function roleSelect() {
   return `
     <section class="hero-card button-stack">
       ${backButton("lockerLocation", "Quay về vị trí tủ")}
-      ${titleBlock("Chọn vai trò", "Bạn đang thao tác với tư cách nào?", "Vai trò sẽ được lưu theo Gmail sau khi đăng nhập. Lần sau cùng email này sẽ không cần chọn lại.")}
+      ${titleBlock("Chọn vai trò", "Bạn đang thao tác với tư cách nào?")}
       ${lockerSummary()}
       <div class="role-grid">
         <button class="role-card" data-action="chooseResident" type="button">
@@ -386,7 +384,7 @@ function login() {
     <section class="hero-card button-stack">
       ${backButton("lockerScan", "Chưa đăng nhập, quay về quét mã")}
       ${progress(2)}
-      ${titleBlock("Đăng nhập Gmail", `Đăng nhập cho vai trò ${roleLabel}`, "Sau khi đăng nhập, web-app lưu vai trò với email này để lần sau đi thẳng vào đúng luồng.")}
+      ${titleBlock("Đăng nhập Gmail", `Đăng nhập cho vai trò ${roleLabel}`)}
       <div class="status-timeline">
         <div class="done">${icon("task_alt")}<strong>Đã chọn ${roleLabel}</strong></div>
         <div class="current">${icon("mail")}<strong>Chờ xác thực Gmail</strong></div>
@@ -473,7 +471,7 @@ function residentProfileSetup() {
     <section class="hero-card button-stack">
       ${backButton("roleSelect", "Đổi vai trò")}
       ${progress(3)}
-      ${titleBlock("Thông tin người nhận", "Thiết lập tài khoản nhận hàng", "Thông tin giống tài khoản mua hàng online, dùng để đối chiếu đơn trong tủ.")}
+      ${titleBlock("Thông tin người nhận", "Thiết lập tài khoản nhận hàng")}
       <div class="form-stack">
         ${field("Họ tên người nhận", "residentName", state.residentProfile.name)}
         ${field("Số điện thoại", "residentPhone", state.residentProfile.phone)}
