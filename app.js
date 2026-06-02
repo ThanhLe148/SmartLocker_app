@@ -10,36 +10,74 @@ const accountName = document.querySelector("#accountName");
 const ordersNavLabel = document.querySelector("#ordersNavLabel");
 const historyNavLabel = document.querySelector("#historyNavLabel");
 
-const receiverSteps = ["Quét QR", "Chọn đơn", "Xác thực", "Lấy hàng", "Đóng tủ", "Hoàn tất"];
-const shipperSteps = ["Quét QR", "Đăng nhập", "Vận đơn", "Thanh toán", "Chọn ngăn", "Bỏ hàng", "Đóng tủ", "Cập nhật", "Hoàn tất"];
+const lockerBlock = {
+  id: "BLOCK-DH-001",
+  name: "Block tủ B-04",
+  site: "Khu nhà ở xã hội Định Hòa",
+  address: "Phường Định Hòa, TP. Thủ Dầu Một, Bình Dương",
+  floor: "Sảnh A - Tầng trệt",
+  status: "Đang hoạt động",
+  compartments: { small: 6, medium: 8, large: 3 },
+};
+
+const receiverSteps = ["Quét tủ", "Đăng nhập", "Hồ sơ", "Chọn đơn", "Xác thực", "Lấy hàng", "Đóng tủ"];
+const shipperSteps = ["Quét tủ", "Đăng nhập", "Hồ sơ", "Quét đơn", "Thanh toán", "Chọn ngăn", "Xác minh", "Hoàn tất"];
 
 const receiverOrders = [
-  { id: "DH001", shop: "Shopee", locker: "A12", sent: "09:30 hôm nay", remain: "Còn 2 giờ 15 phút", fee: "0đ", status: "Chờ nhận" },
-  { id: "DH002", shop: "Lazada", locker: "B02", sent: "10:10 hôm nay", remain: "Sắp hết hạn", fee: "5.000đ", status: "Cần thanh toán phí" },
+  { id: "DH001", shop: "Shopee", locker: "A12", sent: "09:30 hôm nay", remain: "Còn 2 giờ 15 phút", fee: "0đ", status: "Chờ nhận", receiver: "Nguyễn Văn A", phone: "0901234567" },
+  { id: "DH002", shop: "Lazada", locker: "B02", sent: "10:10 hôm nay", remain: "Sắp hết hạn", fee: "5.000đ", status: "Cần thanh toán phí", receiver: "Nguyễn Văn A", phone: "0901234567" },
 ];
 
-const shipperTasks = [
-  { id: "DH118", receiver: "Nguyễn Văn A", status: "Chờ chọn ngăn", action: "Tiếp tục" },
-  { id: "DH119", receiver: "Trần Minh Khang", status: "Chưa thanh toán", action: "Kiểm tra lại" },
+const helperOrders = [
+  { id: "DH-HO-01", shop: "Tiki", locker: "C03", receiver: "Trần Minh Khang", phone: "0912345678", otp: "4821", status: "Ủy quyền nhận hộ" },
 ];
+
+const compartmentSlots = {
+  Nhỏ: ["A01", "A02", "A05"],
+  Vừa: ["B01", "B04", "B06"],
+  Lớn: ["C01", "C04"],
+};
+
+const profiles = JSON.parse(localStorage.getItem("smartlocker.profiles") || "{}");
 
 const state = {
-  route: "home",
-  role: localStorage.getItem("smartlocker.role") || "resident",
-  user: JSON.parse(localStorage.getItem("smartlocker.user") || "null"),
+  route: "lockerScan",
+  role: localStorage.getItem("smartlocker.role") || "",
+  user: null,
   currentStep: 0,
   selectedOrderId: "DH001",
+  selectedHelperOrderId: "",
   helperPhone: "",
-  helperCode: "",
+  helperOtp: "",
+  lockerScanned: localStorage.getItem("smartlocker.lockerScanned") === "true",
+  scanningLocker: false,
   doorAttempt: 0,
+  paymentWaitExpired: false,
+  shipperBalance: Number(localStorage.getItem("smartlocker.shipperBalance") || "31500"),
   otp: makeOtp(),
   draft: {
     parcelCode: "DH118",
     receiverPhone: "0901234567",
     receiverName: "Nguyễn Văn A",
+    receiverAddress: "Căn A1204, Khu nhà ở xã hội Định Hòa",
     note: "",
     size: "Vừa",
-    compartment: "A04",
+    compartment: "B04",
+    proofReady: false,
+  },
+  residentProfile: JSON.parse(localStorage.getItem("smartlocker.residentProfile") || "null") || {
+    name: "Nguyễn Văn A",
+    phone: "0901234567",
+    address: "Căn A1204, Khu nhà ở xã hội Định Hòa",
+    defaultNote: "Nhận hàng ngoài giờ hành chính",
+  },
+  shipperProfile: JSON.parse(localStorage.getItem("smartlocker.shipperProfile") || "null") || {
+    name: "Lê Minh Shipper",
+    phone: "0987654321",
+    company: "Đối tác giao hàng SmartLocker",
+    bankAccount: "9704 1234 5678 9012",
+    bankName: "VCB - Lê Minh",
+    approved: true,
   },
   history: JSON.parse(localStorage.getItem("smartlocker.history") || "null") || [
     { title: "DH000 - Shopee", status: "Đã lấy hàng lúc 08:45 hôm nay" },
@@ -48,20 +86,26 @@ const state = {
 };
 
 const routes = {
+  lockerScan,
+  lockerLocation,
+  lockerMap,
+  roleSelect,
+  login,
   home,
   orders,
   history,
   profile,
-  receiverQr,
+  residentProfileSetup,
   receiverOrdersScreen,
   receiverHelper,
+  receiverHelperInfo,
   receiverProcess,
   receiverClose,
   receiverDoorCheck,
   receiverDone,
-  shipperQr,
-  shipperLogin,
-  shipperParcel,
+  shipperProfileSetup,
+  shipperParcelScan,
+  shipperParcelDetail,
   shipperPayment,
   shipperPaymentWaiting,
   shipperCancelled,
@@ -80,10 +124,41 @@ function icon(name, className = "") {
   return `<span class="material-symbols-outlined ${className}" aria-hidden="true">${name}</span>`;
 }
 
+function currentEmail() {
+  return state.user?.email || "demo@smartlocker.vn";
+}
+
+function saveProfiles() {
+  localStorage.setItem("smartlocker.profiles", JSON.stringify(profiles));
+}
+
 function saveState() {
-  localStorage.setItem("smartlocker.role", state.role);
-  localStorage.setItem("smartlocker.user", JSON.stringify(state.user));
+  localStorage.setItem("smartlocker.role", state.role || "");
   localStorage.setItem("smartlocker.history", JSON.stringify(state.history));
+  localStorage.setItem("smartlocker.lockerScanned", String(state.lockerScanned));
+  localStorage.setItem("smartlocker.residentProfile", JSON.stringify(state.residentProfile));
+  localStorage.setItem("smartlocker.shipperProfile", JSON.stringify(state.shipperProfile));
+  localStorage.setItem("smartlocker.shipperBalance", String(state.shipperBalance));
+}
+
+function saveRoleForEmail() {
+  if (!state.role) return;
+  profiles[currentEmail()] = {
+    ...(profiles[currentEmail()] || {}),
+    role: state.role,
+    residentProfile: state.residentProfile,
+    shipperProfile: state.shipperProfile,
+  };
+  saveProfiles();
+}
+
+function restoreRoleForEmail() {
+  const saved = profiles[currentEmail()];
+  if (!saved?.role) return false;
+  state.role = saved.role;
+  if (saved.residentProfile) state.residentProfile = saved.residentProfile;
+  if (saved.shipperProfile) state.shipperProfile = saved.shipperProfile;
+  return true;
 }
 
 function setRoute(route) {
@@ -102,15 +177,16 @@ function showToast(message) {
 
 function render() {
   updateChrome();
-  view.innerHTML = (routes[state.route] || home)();
+  view.innerHTML = (routes[state.route] || lockerScan)();
   stepPanel.innerHTML = stepper();
+  if (state.route === "shipperPaymentWaiting" && !state.paymentWaitExpired) startPaymentCountdown();
 }
 
 function updateChrome() {
   const isShipper = state.role === "shipper";
-  roleBadge.textContent = isShipper ? "Người giao hàng" : "Cư dân";
+  roleBadge.textContent = state.user ? (isShipper ? "Người giao hàng" : "Cư dân") : "Chưa đăng nhập";
   roleBadge.classList.toggle("shipper", isShipper);
-  accountName.textContent = state.user?.name || "Nguyễn Văn A";
+  accountName.textContent = state.user?.name || "Đăng nhập";
   ordersNavLabel.textContent = isShipper ? "Đơn giao" : "Đơn hàng";
   historyNavLabel.textContent = "Lịch sử";
 
@@ -126,12 +202,22 @@ function currentSteps() {
 }
 
 function stepper() {
+  if (!state.role) {
+    return `
+      <div class="stack">
+        <span class="eyebrow">Bắt đầu tại tủ</span>
+        <h3>Quét mã block tủ</h3>
+        <p class="muted">Mỗi block tủ có một mã duy nhất. Sau khi quét, web-app hiển thị vị trí tủ và cho chọn vai trò.</p>
+        ${lockerSummary()}
+      </div>
+    `;
+  }
   const steps = currentSteps();
   return `
     <div class="stack">
       <span class="eyebrow">${state.role === "shipper" ? "Luồng giao hàng" : "Luồng nhận hàng"}</span>
-      <h3>${state.role === "shipper" ? "Giao hàng nhanh" : "Nhận hàng nhanh"}</h3>
-      <p class="muted">Chỉ hiển thị các bước người dùng cần thao tác. Trạng thái hệ thống được gộp trong màn xử lý.</p>
+      <h3>${state.role === "shipper" ? "Giao hàng tại block tủ" : "Nhận hàng tại block tủ"}</h3>
+      <p class="muted">${lockerBlock.name} đang được chọn tại ${lockerBlock.site}.</p>
       <ol class="step-list compact">
         ${steps.map((step, index) => {
           const cls = index < state.currentStep ? "done" : index === state.currentStep ? "current" : "";
@@ -165,12 +251,157 @@ function titleBlock(label, title, copy = "") {
   `;
 }
 
+function backButton(route = "lockerScan", label = "Quay về") {
+  return `<button class="back-link" data-route="${route}" type="button">${icon("arrow_back")} ${label}</button>`;
+}
+
 function sectionHeader(title, copy = "") {
   return `<div class="section-head"><h2>${title}</h2>${copy ? `<p class="muted">${copy}</p>` : ""}</div>`;
 }
 
-function home() {
+function lockerSummary() {
+  return `
+    <article class="location-card">
+      <span class="order-icon">${icon("inventory_2")}</span>
+      <div>
+        <strong>${lockerBlock.name}</strong>
+        <p class="muted">${lockerBlock.site}</p>
+        <small>${lockerBlock.floor}</small>
+      </div>
+    </article>
+  `;
+}
+
+function lockerScan() {
   state.currentStep = 0;
+  const scanning = state.scanningLocker;
+  return `
+    <div class="page">
+      <section class="hero-card button-stack">
+        ${titleBlock("SmartLocker", "Quét mã block tủ", "Mỗi block tủ có một mã QR duy nhất. Hãy quét mã dán trên block tủ trước khi giao hoặc nhận hàng.")}
+        <div class="camera-card locker-camera ${scanning ? "is-scanning" : ""}">
+          <div class="scan-frame locker-scan-frame">
+            <span class="corner-a"></span><span class="corner-b"></span>
+            <div class="qr-plate">
+              ${icon("qr_code_2")}
+              <span class="scan-line"></span>
+            </div>
+          </div>
+          <p class="scan-caption">${scanning ? "Đang quét mã block tủ..." : "Căn QR vào giữa khung để nhận diện block tủ"}</p>
+        </div>
+        <div class="choice-grid">
+          <button class="secondary-btn" data-action="manualLocker" type="button" ${scanning ? "disabled" : ""}>${icon("pin")} Nhập mã tủ thủ công</button>
+          <button class="primary-btn" data-action="scanLockerBlock" type="button" ${scanning ? "disabled" : ""}>${icon("qr_code_scanner")} ${scanning ? "Đang quét..." : "Quét mã block tủ"}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function lockerLocation() {
+  return `
+    <div class="page">
+      ${backButton("lockerScan", "Quét lại mã tủ")}
+      <section class="dashboard-hero">
+        <div>
+          <span class="eyebrow">Đã nhận diện block tủ</span>
+          <h1>${lockerBlock.name}</h1>
+          <p class="lead">${lockerBlock.site}</p>
+          <p class="muted">${lockerBlock.address} • ${lockerBlock.floor}</p>
+        </div>
+        <img src="./assets/green-locker.png" alt="Block tủ SmartLocker tại Định Hòa" />
+      </section>
+      <section class="metric-grid">
+        ${metric("Ngăn nhỏ trống", lockerBlock.compartments.small, "inventory")}
+        ${metric("Ngăn vừa trống", lockerBlock.compartments.medium, "inventory_2")}
+        ${metric("Ngăn lớn trống", lockerBlock.compartments.large, "deployed_code")}
+        ${metric("Trạng thái", "Online", "wifi")}
+      </section>
+      <section class="action-panel">
+        <div>
+          <h2>Vị trí tủ đã sẵn sàng</h2>
+          <p class="muted">Các thao tác tiếp theo sẽ chỉ lấy danh sách đơn và ngăn trống tại block tủ này.</p>
+        </div>
+        <div class="choice-grid">
+          <button class="secondary-btn" data-route="lockerMap" type="button">${icon("map")} Xem bản đồ tủ</button>
+          <button class="primary-btn" data-route="roleSelect" type="button">Tiếp theo</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function lockerMap() {
+  return `
+    <div class="page">
+      ${backButton("lockerLocation", "Quay về vị trí tủ")}
+      <section class="hero-card button-stack">
+        ${titleBlock("Bản đồ tủ", "Mạng lưới SmartLocker", "Giai đoạn hiện tại có một block tủ tại Khu nhà ở xã hội Định Hòa. Bản đồ nhiều điểm tủ sẽ được cập nhật khi mở rộng.")}
+        <div class="map-preview">
+          <div class="map-grid"></div>
+          <div class="map-pin active">
+            ${icon("location_on")}
+            <strong>Khu nhà ở xã hội Định Hòa</strong>
+            <span>${lockerBlock.name} • Đang hoạt động</span>
+          </div>
+          <div class="map-pin future one">${icon("add_location")} Điểm tủ tương lai</div>
+          <div class="map-pin future two">${icon("add_location")} Đang cập nhật</div>
+        </div>
+        <div class="scale-note">
+          ${icon("hub")}
+          <div>
+            <strong>Thiết kế sẵn cho khả năng mở rộng</strong>
+            <p class="muted">Khi có thêm block tủ, màn hình này sẽ hiển thị nhiều địa điểm, trạng thái online/offline và số ngăn còn trống theo từng khu.</p>
+          </div>
+        </div>
+        <button class="primary-btn" data-action="continueAfterLocker" type="button">Tiếp tục với block tủ này</button>
+      </section>
+    </div>
+  `;
+}
+
+function roleSelect() {
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("lockerLocation", "Quay về vị trí tủ")}
+      ${titleBlock("Chọn vai trò", "Bạn đang thao tác với tư cách nào?", "Vai trò sẽ được lưu theo Gmail sau khi đăng nhập. Lần sau cùng email này sẽ không cần chọn lại.")}
+      ${lockerSummary()}
+      <div class="role-grid">
+        <button class="role-card" data-action="chooseResident" type="button">
+          <span class="role-icon">${icon("home")}</span>
+          <span><strong>Tôi là Cư dân</strong><small class="muted">Nhận hàng của mình hoặc nhận hộ</small></span>
+        </button>
+        <button class="role-card" data-action="chooseShipper" type="button">
+          <span class="role-icon">${icon("local_shipping")}</span>
+          <span><strong>Tôi là Shipper</strong><small class="muted">Gửi hàng vào tủ và nhận thưởng</small></span>
+        </button>
+      </div>
+    </section>
+  `;
+}
+
+function login() {
+  const roleLabel = state.role === "shipper" ? "Shipper" : "Cư dân";
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("lockerScan", "Chưa đăng nhập, quay về quét mã")}
+      ${progress(2)}
+      ${titleBlock("Đăng nhập Gmail", `Đăng nhập cho vai trò ${roleLabel}`, "Sau khi đăng nhập, web-app lưu vai trò với email này để lần sau đi thẳng vào đúng luồng.")}
+      <div class="status-timeline">
+        <div class="done">${icon("task_alt")}<strong>Đã chọn ${roleLabel}</strong></div>
+        <div class="current">${icon("mail")}<strong>Chờ xác thực Gmail</strong></div>
+      </div>
+      <button class="primary-btn" data-action="googleLogin" type="button">${icon("mail")} Đăng nhập bằng Gmail</button>
+      <button class="secondary-btn" data-route="roleSelect" type="button">Đổi vai trò</button>
+    </section>
+  `;
+}
+
+function home() {
+  if (!state.lockerScanned) return lockerScan();
+  if (!state.user && state.role) return lockerScan();
+  if (!state.role) return roleSelect();
+  state.currentStep = 3;
   return state.role === "shipper" ? shipperDashboard() : residentDashboard();
 }
 
@@ -180,28 +411,25 @@ function residentDashboard() {
       <section class="dashboard-hero">
         <div>
           <span class="eyebrow">Cư dân</span>
-          <h1>Xin chào, Nguyễn Văn A</h1>
-          <p class="lead">Bạn có <strong>2 đơn</strong> đang chờ nhận tại SmartLocker.</p>
+          <h1>Xin chào, ${state.residentProfile.name}</h1>
+          <p class="lead">Bạn có <strong>2 đơn</strong> đang chờ nhận tại ${lockerBlock.name}.</p>
+          <p class="muted">${state.residentProfile.address}</p>
         </div>
         <img src="./assets/green-locker.png" alt="Tủ khóa thông minh SmartLocker" />
       </section>
       <section class="action-panel">
         <div>
-          <h2>Tác vụ chính</h2>
-          <p class="muted">Đang đứng trước tủ? Quét QR để mở đúng ngăn.</p>
+          <h2>Nhận hàng tại ${lockerBlock.name}</h2>
+          <p class="muted">Danh sách chỉ hiển thị đơn đang nằm trong block tủ đã quét.</p>
         </div>
         <div class="choice-grid">
-          <button class="primary-btn tall-btn" data-route="receiverQr" type="button">${icon("qr_code_scanner")} Quét QR tủ</button>
-          <button class="secondary-btn tall-btn" data-action="manualLocker" type="button">${icon("pin")} Nhập mã tủ thủ công</button>
+          <button class="primary-btn tall-btn" data-route="receiverOrdersScreen" type="button">${icon("inventory_2")} Lấy hàng của tôi</button>
+          <button class="secondary-btn tall-btn" data-route="receiverHelper" type="button">${icon("group")} Nhận hộ</button>
         </div>
       </section>
       <section class="card button-stack">
-        ${sectionHeader("Đơn đang chờ nhận", "Thông tin đủ để quyết định lấy đơn nào trước.")}
+        ${sectionHeader("Đơn đang chờ nhận", "Thông tin đơn hàng trong block tủ ở vị trí đã quét.")}
         <div class="list-stack">${receiverOrders.map(orderCard).join("")}</div>
-      </section>
-      <section class="card button-stack">
-        ${sectionHeader("Không thấy đơn của bạn?", "Dùng khi nhận hàng giúp người thân hoặc bạn cùng nhà.")}
-        <button class="secondary-btn" data-route="receiverHelper" type="button">${icon("group")} Lấy hộ người khác</button>
       </section>
     </div>
   `;
@@ -212,44 +440,423 @@ function shipperDashboard() {
     <div class="page">
       <section class="dashboard-hero shipper">
         <div>
-          <span class="eyebrow">Người giao hàng - Đã duyệt</span>
-          <h1>Giao hàng hôm nay</h1>
-          <p class="lead">Ưu tiên quét tủ, nhập vận đơn và xử lý đơn đang giao.</p>
+          <span class="eyebrow">Shipper - Đã duyệt</span>
+          <h1>Giao hàng tại ${lockerBlock.name}</h1>
+          <p class="lead">Số dư hiện tại: <strong>${formatMoney(state.shipperBalance)}</strong></p>
+          <p class="muted">${state.shipperProfile.company} • ${state.shipperProfile.phone}</p>
         </div>
         <img src="./assets/green-locker.png" alt="Tủ khóa thông minh SmartLocker" />
       </section>
       <section class="action-panel">
         <div>
-          <h2>Bắt đầu giao hàng</h2>
-          <p class="muted">Quét QR tủ trước, sau đó nhập hoặc quét mã vận đơn.</p>
+          <h2>Bắt đầu gửi hàng</h2>
+          <p class="muted">Quét mã đơn hàng, kiểm tra thanh toán rồi chọn ngăn trống tương ứng.</p>
         </div>
         <div class="choice-grid">
-          <button class="primary-btn tall-btn" data-route="shipperQr" type="button">${icon("qr_code_scanner")} Quét QR tủ</button>
-          <button class="secondary-btn tall-btn" data-route="shipperParcel" type="button">${icon("barcode_scanner")} Nhập mã vận đơn</button>
+          <button class="primary-btn tall-btn" data-route="shipperParcelScan" type="button">${icon("barcode_scanner")} Quét mã đơn hàng</button>
+          <button class="secondary-btn tall-btn" data-route="orders" type="button">${icon("list_alt")} Đơn đang xử lý</button>
         </div>
       </section>
       <section class="metric-grid">
         ${metric("Cần giao", "12", "inventory_2")}
         ${metric("Đã hoàn thành", "45", "task_alt")}
-        ${metric("Đơn lỗi", "0", "error")}
-        ${metric("Thu nhập", "31.500đ", "payments")}
-      </section>
-      <section class="card button-stack">
-        ${sectionHeader("Đơn đang xử lý", "Tiếp tục đúng bước, không cần xem lại hướng dẫn.")}
-        <div class="list-stack">
-          ${shipperTasks.map((task) => `
-            <article class="task-card">
-              <span class="order-icon">${icon("local_shipping")}</span>
-              <div>
-                <strong>${task.id}</strong>
-                <p class="muted">${task.receiver} • ${task.status}</p>
-              </div>
-              <button class="mini-btn" data-route="shipperPayment" type="button">${task.action}</button>
-            </article>
-          `).join("")}
-        </div>
+        ${metric("Chưa thanh toán", "1", "payments")}
+        ${metric("Số dư", formatMoney(state.shipperBalance), "account_balance_wallet")}
       </section>
     </div>
+  `;
+}
+
+function residentProfileSetup() {
+  state.currentStep = 2;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("roleSelect", "Đổi vai trò")}
+      ${progress(3)}
+      ${titleBlock("Thông tin người nhận", "Thiết lập tài khoản nhận hàng", "Thông tin giống tài khoản mua hàng online, dùng để đối chiếu đơn trong tủ.")}
+      <div class="form-stack">
+        ${field("Họ tên người nhận", "residentName", state.residentProfile.name)}
+        ${field("Số điện thoại", "residentPhone", state.residentProfile.phone)}
+        ${field("Địa chỉ căn hộ", "residentAddress", state.residentProfile.address)}
+        ${field("Ghi chú nhận hàng", "residentNote", state.residentProfile.defaultNote)}
+      </div>
+      <button class="primary-btn" data-action="saveResidentProfile" type="button">Lưu và xem đơn cần nhận</button>
+    </section>
+  `;
+}
+
+function receiverOrdersScreen() {
+  state.currentStep = 3;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("home", "Quay về trang chủ")}
+      ${progress(4)}
+      ${titleBlock("Danh sách hàng cần nhận", `Đơn trong ${lockerBlock.name}`, "Chọn đơn của bạn để mở đúng ngăn tủ.")}
+      <div class="list-stack">${receiverOrders.map(orderCard).join("")}</div>
+      <button class="secondary-btn" data-route="receiverHelper" type="button">${icon("group")} Nhận hộ bằng số điện thoại và OTP</button>
+    </section>
+  `;
+}
+
+function receiverHelper() {
+  state.currentStep = 3;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("receiverOrdersScreen", "Quay về đơn của tôi")}
+      ${progress(4)}
+      ${titleBlock("Nhận hộ", "Nhập số điện thoại và OTP", "OTP được gửi đến số điện thoại của người nhận hàng. Sau khi xác thực, hệ thống sẽ hiện thông tin người được nhận hộ.")}
+      <div class="form-stack">
+        ${field("Số điện thoại người nhận", "helperPhone", "0912345678")}
+        ${field("Mã OTP từ số điện thoại đó", "helperOtp", "4821")}
+      </div>
+      <button class="primary-btn" data-action="verifyHelper" type="button">Xác thực nhận hộ</button>
+      <button class="secondary-btn" data-route="receiverOrdersScreen" type="button">Quay lại đơn của tôi</button>
+    </section>
+  `;
+}
+
+function receiverHelperInfo() {
+  state.currentStep = 4;
+  const helper = helperOrders[0];
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("receiverHelper", "Quay về xác thực nhận hộ")}
+      ${progress(5)}
+      ${titleBlock("Thông tin nhận hộ", helper.receiver, "Thông tin được xác thực từ số điện thoại và OTP.")}
+      <div class="profile-card">
+        <div class="avatar large">K</div>
+        <div>
+          <strong>${helper.receiver}</strong>
+          <p class="muted">${helper.phone}</p>
+          <p class="muted">Trạng thái: ${helper.status}</p>
+        </div>
+      </div>
+      <div class="form-stack">
+        ${field("Mã đơn hàng cần lấy hộ", "helperOrderCode", helper.id)}
+      </div>
+      <button class="primary-btn" data-action="selectHelperOrder" data-order="${helper.id}" type="button">Mở đơn nhận hộ</button>
+    </section>
+  `;
+}
+
+function receiverProcess() {
+  state.currentStep = 4;
+  const order = findSelectedOrder();
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("receiverOrdersScreen", "Quay về danh sách đơn")}
+      ${progress(5)}
+      ${titleBlock("Đang xử lý nhận hàng", `Ngăn ${order.locker} đã mở`, "Vui lòng lấy hàng ra khỏi tủ rồi đóng cửa lại.")}
+      ${statusTimeline([
+        ["done", "Xác thực đơn hàng"],
+        ["done", "Gửi lệnh mở tủ"],
+        ["current", "Chờ bạn lấy hàng và đóng cửa"],
+        ["todo", "Cập nhật trạng thái"],
+      ])}
+      <button class="primary-btn" data-route="receiverClose" type="button">${icon("inventory_2")} Tôi đã lấy hàng</button>
+    </section>
+  `;
+}
+
+function receiverClose() {
+  state.currentStep = 5;
+  const order = findSelectedOrder();
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("receiverProcess", "Quay lại bước lấy hàng")}
+      ${progress(6)}
+      ${titleBlock("Đóng cửa tủ", "Cửa tủ đang mở", `Vui lòng đóng cửa ngăn ${order.locker} để hoàn tất nhận hàng.`)}
+      <div class="door-state warning">${icon("door_open")} Cửa ngăn ${order.locker} đang mở</div>
+      <button class="primary-btn" data-route="receiverDoorCheck" type="button">${icon("door_front")} Tôi đã đóng cửa</button>
+    </section>
+  `;
+}
+
+function receiverDoorCheck() {
+  state.currentStep = 5;
+  if (state.doorAttempt === 0) {
+    return alertScreen(6, 7, "Cửa tủ chưa đóng", "Hãy đóng cửa tủ để hoàn tất nhận hàng.", "receiverDoorRetry");
+  }
+  return `
+    <section class="hero-card button-stack">
+      ${progress(6)}
+      ${titleBlock("Cửa tủ đã đóng", "Đang hoàn tất nhận hàng", "Hệ thống cập nhật trạng thái đơn hàng và chuyển ngăn tủ về trạng thái trống.")}
+      ${statusTimeline([
+        ["done", "Kiểm tra cửa tủ"],
+        ["done", "Cập nhật trạng thái: Đã lấy hàng"],
+        ["done", "Ngăn tủ về trạng thái trống"],
+      ])}
+      <button class="primary-btn" data-route="receiverDone" type="button">Hoàn tất</button>
+    </section>
+  `;
+}
+
+function receiverDone() {
+  state.currentStep = 6;
+  return successScreen(7, 7, "Nhận hàng thành công", `${state.selectedOrderId} đã được cập nhật: Đã lấy hàng.`, "Về trang chủ", "home");
+}
+
+function shipperProfileSetup() {
+  state.currentStep = 2;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("roleSelect", "Đổi vai trò")}
+      ${progress(3)}
+      ${titleBlock("Thông tin shipper", "Thiết lập tài khoản giao hàng", "Thông tin giống tài khoản shipper online, dùng để hiển thị thanh toán và liên hệ.")}
+      <div class="form-stack">
+        ${field("Họ tên shipper", "shipperName", state.shipperProfile.name)}
+        ${field("Số điện thoại", "shipperPhone", state.shipperProfile.phone)}
+        ${field("Đơn vị giao hàng", "shipperCompany", state.shipperProfile.company)}
+        ${field("Số tài khoản nhận COD", "shipperBankAccount", state.shipperProfile.bankAccount)}
+        ${field("Ngân hàng / Chủ tài khoản", "shipperBankName", state.shipperProfile.bankName)}
+      </div>
+      <button class="primary-btn" data-action="saveShipperProfile" type="button">Lưu và quét đơn hàng</button>
+    </section>
+  `;
+}
+
+function shipperParcelScan() {
+  state.currentStep = 3;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("home", "Quay về trang chủ")}
+      ${progress(4)}
+      ${titleBlock("Quét mã đơn hàng", "Đưa mã vận đơn vào khung quét", "Sau khi quét, hệ thống hiển thị thông tin người nhận để shipper kiểm tra.")}
+      <div class="camera-card">
+        <div class="scan-frame">
+          <span class="corner-a"></span><span class="corner-b"></span>
+          ${icon("barcode_scanner")}
+        </div>
+      </div>
+      <div class="choice-grid">
+        <button class="secondary-btn" data-action="manualParcel" type="button">${icon("keyboard")} Nhập mã đơn</button>
+        <button class="primary-btn" data-route="shipperParcelDetail" type="button">${icon("barcode_scanner")} Quét xong</button>
+      </div>
+    </section>
+  `;
+}
+
+function shipperParcelDetail() {
+  state.currentStep = 3;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("shipperParcelScan", "Quay lại quét đơn")}
+      ${progress(4)}
+      ${titleBlock("Thông tin người nhận", state.draft.receiverName, "Shipper kiểm tra thông tin trước khi xác nhận trạng thái thanh toán.")}
+      <div class="profile-card">
+        <div class="avatar large">A</div>
+        <div>
+          <strong>${state.draft.receiverName}</strong>
+          <p class="muted">${state.draft.receiverPhone}</p>
+          <p class="muted">${state.draft.receiverAddress}</p>
+        </div>
+      </div>
+      <div class="metric-row"><span>Mã đơn hàng</span><strong>${state.draft.parcelCode}</strong></div>
+      <button class="primary-btn" data-route="shipperPayment" type="button">Kiểm tra thanh toán</button>
+    </section>
+  `;
+}
+
+function shipperPayment() {
+  state.currentStep = 4;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("shipperParcelDetail", "Quay về thông tin người nhận")}
+      ${progress(5)}
+      ${titleBlock("Thanh toán", "Đơn hàng đã thanh toán chưa?", "Nếu chưa thanh toán, hệ thống sẽ gửi QR và số tài khoản của shipper cho người nhận.")}
+      <div class="choice-grid">
+        <button class="primary-btn" data-action="paymentPaid" type="button">Đã thanh toán</button>
+        <button class="secondary-btn" data-action="paymentUnpaid" type="button">Chưa thanh toán</button>
+      </div>
+    </section>
+  `;
+}
+
+function shipperPaymentWaiting() {
+  state.currentStep = 4;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("shipperPayment", "Quay về kiểm tra thanh toán")}
+      ${progress(5)}
+      ${titleBlock("Chờ người nhận thanh toán", "Đã gửi thông báo thanh toán", "Người nhận nhận được mã QR và số tài khoản của shipper. Sau 3 phút có thể hủy giao đơn.")}
+      <div class="payment-card">
+        <div class="fake-qr">${icon("qr_code_2")}</div>
+        <div>
+          <strong>${state.shipperProfile.bankName}</strong>
+          <p class="muted">Số tài khoản: ${state.shipperProfile.bankAccount}</p>
+          <p class="muted">Nội dung: ${state.draft.parcelCode}</p>
+        </div>
+      </div>
+      <div class="status-timeline">
+        <div class="done">${icon("task_alt")}<strong>Đã thông báo cho người nhận</strong></div>
+        <div class="current">${icon("hourglass_top")}<strong>${state.paymentWaitExpired ? "Đã quá 3 phút" : "Đang chờ thanh toán trong 3 phút"}</strong></div>
+      </div>
+      <div class="choice-grid">
+        <button class="primary-btn" data-action="receiverPays" type="button">Người nhận đã thanh toán</button>
+        <button class="secondary-btn" data-action="callReceiver" type="button">${icon("call")} Gọi người nhận</button>
+      </div>
+      ${state.paymentWaitExpired ? `<button class="danger-btn" data-route="shipperCancelled" type="button">Hủy giao đơn hàng</button>` : `<button class="danger-btn muted-action" data-action="expirePaymentWait" type="button">Mô phỏng hết 3 phút</button>`}
+    </section>
+  `;
+}
+
+function shipperCancelled() {
+  state.currentStep = 4;
+  return successScreen(5, 8, "Đơn hàng chuyển vào mục chưa thanh toán", "Hệ thống đã cập nhật cho shipper và người nhận, đồng thời gửi thông báo hủy giao đơn.", "Quay về trang chủ", "home", "warning");
+}
+
+function shipperChooseCompartment() {
+  state.currentStep = 5;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("shipperPayment", "Quay về thanh toán")}
+      ${progress(6)}
+      ${titleBlock("Chọn ngăn tủ", `Kích thước đang chọn: ${state.draft.size}`, "Bấm Nhỏ / Vừa / Lớn để lọc các ngăn còn trống tương ứng.")}
+      <div class="choice-grid">
+        ${["Nhỏ", "Vừa", "Lớn"].map((size) => `<button class="${state.draft.size === size ? "primary-btn" : "secondary-btn"}" data-action="chooseSize" data-size="${size}" type="button">${size}</button>`).join("")}
+      </div>
+      <div class="list-stack">
+        ${compartmentSlots[state.draft.size].map((slot) => `<button class="order-card" data-action="chooseSlot" data-slot="${slot}" type="button"><span class="order-icon">${icon("inventory")}</span><span><strong>Ngăn ${slot}</strong><small class="muted">Còn trống • ${state.draft.size}</small></span>${icon("chevron_right")}</button>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function shipperDropoff() {
+  state.currentStep = 6;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("shipperChooseCompartment", "Chọn lại ngăn")}
+      ${progress(7)}
+      ${titleBlock("Bỏ hàng vào tủ", `Ngăn ${state.draft.compartment} đã mở`, "Chụp ảnh kiện hàng trong ngăn để xác thực đã bỏ hàng.")}
+      <div class="proof-card">
+        <span>${icon("photo_camera")}</span>
+        <div>
+          <strong>Mã đơn: ${state.draft.parcelCode}</strong>
+          <p class="muted">Ngăn ${state.draft.compartment} • Người nhận: ${state.draft.receiverName}</p>
+          <p class="muted">${state.draft.proofReady ? "Đã có ảnh minh chứng" : "Chưa có ảnh minh chứng"}</p>
+        </div>
+      </div>
+      <div class="choice-grid">
+        <button class="secondary-btn" data-action="photoProof" type="button">${icon("photo_camera")} Chụp ảnh minh chứng</button>
+        <button class="primary-btn" data-route="shipperClose" type="button">Xác nhận đã bỏ hàng</button>
+      </div>
+    </section>
+  `;
+}
+
+function shipperClose() {
+  state.currentStep = 6;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("shipperDropoff", "Quay lại xác minh bỏ hàng")}
+      ${progress(7)}
+      ${titleBlock("Đóng cửa tủ", `Vui lòng đóng cửa ngăn ${state.draft.compartment}`, "Sau khi cửa đóng, hệ thống gửi thông báo và cập nhật đơn cho người nhận.")}
+      <div class="door-state warning">${icon("door_open")} Cửa ngăn ${state.draft.compartment} đang mở</div>
+      <button class="primary-btn" data-route="shipperDoorCheck" type="button">${icon("door_front")} Tôi đã đóng cửa</button>
+    </section>
+  `;
+}
+
+function shipperDoorCheck() {
+  state.currentStep = 7;
+  if (state.doorAttempt === 0) {
+    return alertScreen(7, 8, "Cửa tủ chưa đóng", "Vui lòng đóng cửa lại để gửi thông báo giao hàng.", "shipperDoorRetry");
+  }
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("shipperClose", "Quay lại đóng tủ")}
+      ${progress(8)}
+      ${titleBlock("Đang cập nhật giao hàng", "Cửa tủ đã đóng", "Hệ thống cập nhật đơn hàng, gửi mã mở tủ và cộng 700đ vào tài khoản shipper.")}
+      ${statusTimeline([
+        ["done", "Xác nhận cửa tủ đã đóng"],
+        ["done", "Gửi thông báo và mã mở tủ cho người nhận"],
+        ["done", "Cập nhật đơn hàng: Đã giao vào tủ"],
+        ["done", `Cộng 700đ vào tài khoản shipper: ${formatMoney(state.shipperBalance + 700)}`],
+      ])}
+      <button class="primary-btn" data-action="completeShipperDelivery" type="button">Hoàn tất giao hàng</button>
+    </section>
+  `;
+}
+
+function shipperDone() {
+  state.currentStep = 7;
+  return successScreen(8, 8, "Giao hàng thành công", `Bạn đã nhận 700đ. Số dư hiện tại: ${formatMoney(state.shipperBalance)}.`, "Giao đơn tiếp theo", "shipperParcelScan");
+}
+
+function orders() {
+  return `
+    <section class="hero-card button-stack">
+      ${titleBlock(state.role === "shipper" ? "Đơn giao" : "Đơn hàng", state.role === "shipper" ? "Đơn đang xử lý" : "Đơn đang chờ nhận")}
+      <div class="list-stack">
+        ${state.role === "shipper"
+          ? shipperTaskList()
+          : receiverOrders.map(orderCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function shipperTaskList() {
+  return `
+    <article class="task-card">
+      <span class="order-icon">${icon("payments")}</span>
+      <div>
+        <strong>${state.draft.parcelCode}</strong>
+        <p class="muted">${state.paymentWaitExpired ? "Chưa thanh toán • Có thể hủy giao" : "Đang xử lý"}</p>
+      </div>
+      <button class="mini-btn" data-route="shipperPayment" type="button">Tiếp tục</button>
+    </article>
+  `;
+}
+
+function history() {
+  return `
+    <section class="hero-card button-stack">
+      ${titleBlock("Lịch sử", state.role === "shipper" ? "Lịch sử giao hàng" : "Lịch sử nhận hàng")}
+      <div class="list-stack">
+        ${state.history.map((item) => `<article class="history-item metric-row"><div><strong>${item.title}</strong><p class="muted">${item.status}</p></div>${icon("chevron_right")}</article>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function profile() {
+  if (!state.user) {
+    return `
+      <section class="hero-card button-stack">
+        ${titleBlock("Tài khoản", "Chưa đăng nhập", "Bạn cần quét mã block tủ, chọn vai trò rồi đăng nhập bằng Gmail để dùng tài khoản.")}
+        <div class="status-timeline">
+          <div class="${state.lockerScanned ? "done" : "current"}">${icon(state.lockerScanned ? "task_alt" : "qr_code_scanner")}<strong>${state.lockerScanned ? "Đã quét block tủ" : "Chưa quét block tủ"}</strong></div>
+          <div class="${state.role ? "done" : "todo"}">${icon(state.role ? "task_alt" : "radio_button_unchecked")}<strong>${state.role ? "Đã chọn vai trò" : "Chưa chọn vai trò"}</strong></div>
+          <div class="todo">${icon("mail")}<strong>Chưa đăng nhập Gmail</strong></div>
+        </div>
+        <div class="choice-grid">
+          <button class="primary-btn" data-route="lockerScan" type="button">Quét mã block tủ</button>
+          ${state.lockerScanned ? `<button class="secondary-btn" data-route="roleSelect" type="button">Chọn vai trò</button>` : ""}
+        </div>
+      </section>
+    `;
+  }
+  const isShipper = state.role === "shipper";
+  const profile = isShipper ? state.shipperProfile : state.residentProfile;
+  return `
+    <section class="hero-card button-stack">
+      ${titleBlock("Tài khoản", profile.name || state.user?.name || "Khách demo", hasSupabase ? "Supabase đã cấu hình." : "Đang chạy demo trên máy.")}
+      <div class="profile-card">
+        <div class="avatar large">${isShipper ? "S" : "A"}</div>
+        <div>
+          <strong>${profile.name}</strong>
+          <p class="muted">${state.user?.email || currentEmail()}</p>
+          <p class="muted">${isShipper ? profile.company : profile.address}</p>
+        </div>
+      </div>
+      <div class="metric-row"><span>Vai trò</span><strong>${isShipper ? "Shipper" : "Cư dân"}</strong></div>
+      <div class="metric-row"><span>Block tủ hiện tại</span><strong>${lockerBlock.name}</strong></div>
+      ${isShipper ? `<div class="metric-row"><span>Số dư shipper</span><strong>${formatMoney(state.shipperBalance)}</strong></div>` : ""}
+      <button class="secondary-btn" data-action="switchRole" type="button">Đổi vai trò demo</button>
+      <button class="secondary-btn" data-action="resetStart" type="button">Quét lại block tủ</button>
+    </section>
   `;
 }
 
@@ -282,301 +889,6 @@ function orderCard(order) {
   `;
 }
 
-function orders() {
-  return `
-    <section class="hero-card button-stack">
-      ${titleBlock(state.role === "shipper" ? "Đơn giao" : "Đơn hàng", state.role === "shipper" ? "Đơn đang xử lý" : "Đơn đang chờ nhận")}
-      <div class="list-stack">
-        ${state.role === "shipper"
-          ? shipperTasks.map((task) => `<article class="task-card"><span class="order-icon">${icon("local_shipping")}</span><div><strong>${task.id}</strong><p class="muted">${task.receiver} • ${task.status}</p></div><button class="mini-btn" data-route="shipperPayment" type="button">${task.action}</button></article>`).join("")
-          : receiverOrders.map(orderCard).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function history() {
-  return `
-    <section class="hero-card button-stack">
-      ${titleBlock("Lịch sử", state.role === "shipper" ? "Lịch sử giao hàng" : "Lịch sử nhận hàng")}
-      <div class="list-stack">
-        ${state.history.map((item) => `<article class="history-item metric-row"><div><strong>${item.title}</strong><p class="muted">${item.status}</p></div>${icon("chevron_right")}</article>`).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function profile() {
-  return `
-    <section class="hero-card button-stack">
-      ${titleBlock("Tài khoản", state.user?.name || "Nguyễn Văn A", hasSupabase ? "Supabase đã cấu hình." : "Đang chạy demo trên máy.")}
-      <div class="metric-row"><span>Vai trò</span><strong>${state.role === "shipper" ? "Người giao hàng" : "Cư dân"}</strong></div>
-      <div class="metric-row"><span>Email</span><strong>${state.user?.email || "demo@smartlocker.vn"}</strong></div>
-      <div class="metric-row"><span>Trạng thái</span><strong>${state.role === "shipper" ? "Đã duyệt" : "Đã xác thực"}</strong></div>
-      <button class="secondary-btn" data-action="switchRole" type="button">Đổi vai trò demo</button>
-      <button class="secondary-btn" data-action="googleLogin" type="button">${icon("mail")} Đăng nhập bằng Gmail</button>
-    </section>
-  `;
-}
-
-function scannerScreen(label, title, copy, action, backRoute) {
-  return `
-    <div class="page">
-      ${progress(state.currentStep + 1)}
-      <section class="hero-card button-stack">
-        ${titleBlock(label, title, copy)}
-        <div class="camera-card">
-          <div class="scan-frame">
-            <span class="corner-a"></span><span class="corner-b"></span>
-            ${icon("qr_code_scanner")}
-          </div>
-        </div>
-        <div class="choice-grid">
-          <button class="secondary-btn" data-action="manualLocker" type="button">${icon("pin")} Nhập mã tủ thủ công</button>
-          <button class="primary-btn" data-action="${action}" type="button">Quét QR tủ</button>
-        </div>
-        <button class="mini-btn" data-route="${backRoute}" type="button">Quay lại</button>
-      </section>
-    </div>
-  `;
-}
-
-function receiverQr() {
-  state.currentStep = 0;
-  return scannerScreen("Quét QR", "Quét mã QR dán trên tủ", "Sau khi nhận diện, hệ thống sẽ xác định vị trí tủ và ngăn cần mở.", "receiverQrDone", "home");
-}
-
-function receiverOrdersScreen() {
-  state.currentStep = 1;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(2)}
-      ${titleBlock("Chọn đơn", "Đơn đang chờ nhận", "Chọn đúng đơn cần lấy sau khi đã quét tủ.")}
-      <div class="list-stack">${receiverOrders.map(orderCard).join("")}</div>
-      <button class="secondary-btn" data-route="receiverHelper" type="button">${icon("group")} Lấy hộ người khác</button>
-    </section>
-  `;
-}
-
-function receiverHelper() {
-  state.currentStep = 1;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(2)}
-      ${titleBlock("Lấy hộ người khác", "Nhập thông tin xác thực", "Mã mở tủ gồm 4 đến 6 chữ số do người nhận cung cấp.")}
-      <div class="form-stack">
-        ${field("Số điện thoại người nhận", "helperPhone", "0901234567")}
-        ${field("Mã mở tủ", "helperCode", "1234")}
-      </div>
-      <button class="primary-btn" data-route="receiverProcess" type="button">Xác thực và mở tủ</button>
-      <button class="secondary-btn" data-route="home" type="button">Quay về trang chủ</button>
-    </section>
-  `;
-}
-
-function receiverProcess() {
-  state.currentStep = 2;
-  const order = receiverOrders.find((item) => item.id === state.selectedOrderId) || receiverOrders[0];
-  return `
-    <section class="hero-card button-stack">
-      ${progress(3)}
-      ${titleBlock("Đang xử lý nhận hàng", `Ngăn ${order.locker} đã mở`, "Vui lòng lấy hàng ra khỏi tủ rồi đóng cửa lại.")}
-      ${statusTimeline([
-        ["done", "Xác thực đơn hàng"],
-        ["done", "Gửi lệnh mở tủ"],
-        ["current", "Chờ bạn lấy hàng và đóng cửa"],
-        ["todo", "Cập nhật trạng thái"],
-      ])}
-      <button class="primary-btn" data-route="receiverClose" type="button">${icon("inventory_2")} Tôi đã lấy hàng</button>
-    </section>
-  `;
-}
-
-function receiverClose() {
-  state.currentStep = 4;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(5)}
-      ${titleBlock("Đóng cửa tủ", "Cửa tủ đang mở", "Vui lòng đóng cửa tủ để hoàn tất nhận hàng.")}
-      <div class="door-state warning">${icon("door_open")} Cửa tủ A12 đang mở</div>
-      <button class="primary-btn" data-route="receiverDoorCheck" type="button">${icon("door_front")} Tôi đã đóng cửa</button>
-    </section>
-  `;
-}
-
-function receiverDoorCheck() {
-  state.currentStep = 4;
-  if (state.doorAttempt === 0) {
-    return alertScreen(5, 6, "Cửa tủ chưa đóng", "Hãy đóng cửa tủ để hoàn tất nhận hàng.", "receiverDoorRetry");
-  }
-  return `
-    <section class="hero-card button-stack">
-      ${progress(5)}
-      ${titleBlock("Cửa tủ đã đóng", "Đang hoàn tất nhận hàng", "Hệ thống cập nhật trạng thái đơn hàng và chuyển ngăn tủ về trạng thái trống.")}
-      ${statusTimeline([
-        ["done", "Kiểm tra cửa tủ"],
-        ["done", "Cập nhật trạng thái: Đã lấy hàng"],
-        ["done", "Ngăn tủ về trạng thái trống"],
-      ])}
-      <button class="primary-btn" data-route="receiverDone" type="button">Hoàn tất</button>
-    </section>
-  `;
-}
-
-function receiverDone() {
-  state.currentStep = 5;
-  return successScreen(6, 6, "Nhận hàng thành công", `${state.selectedOrderId} đã được cập nhật: Đã lấy hàng.`, "Về trang chủ", "home");
-}
-
-function shipperQr() {
-  state.currentStep = 0;
-  return scannerScreen("Quét QR", "Quét QR tủ để giao hàng", "Xác định đúng trạm tủ trước khi nhập vận đơn.", "shipperQrDone", "home");
-}
-
-function shipperLogin() {
-  state.currentStep = 1;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(2)}
-      ${titleBlock("Đăng nhập", "Xác thực người giao hàng", "Chế độ demo: tài khoản đã được duyệt để giao hàng.")}
-      <div class="form-stack">
-        ${field("Số điện thoại", "helperPhone", "0901234567")}
-        ${field("Mã OTP", "helperCode", "123456")}
-      </div>
-      <button class="primary-btn" data-action="shipperLoginDone" type="button">Đăng nhập</button>
-    </section>
-  `;
-}
-
-function shipperParcel() {
-  state.currentStep = 2;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(3)}
-      ${titleBlock("Vận đơn", "Nhập hoặc quét mã vận đơn", "Thông tin người nhận dùng để gửi thông báo và mã mở tủ.")}
-      <div class="form-stack">
-        ${field("Mã vận đơn", "parcelCode", "DH118")}
-        ${field("Số điện thoại người nhận", "receiverPhone", "0901234567")}
-        ${field("Tên người nhận", "receiverName", "Nguyễn Văn A")}
-        <div class="field"><label>Ghi chú</label><textarea data-field="note" placeholder="Ghi chú nếu có">${state.draft.note}</textarea></div>
-      </div>
-      <button class="primary-btn" data-route="shipperPayment" type="button">Kiểm tra thanh toán</button>
-    </section>
-  `;
-}
-
-function shipperPayment() {
-  state.currentStep = 3;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(4)}
-      ${titleBlock("Thanh toán", "Đang kiểm tra thanh toán", "Chọn kết quả demo để đi tiếp nhánh giao hàng.")}
-      <div class="status-card compact-status">
-        <div class="spinner"></div>
-        <h3>Đang kiểm tra thanh toán...</h3>
-      </div>
-      <div class="choice-grid">
-        <button class="primary-btn" data-action="paymentPaid" type="button">Đơn đã thanh toán</button>
-        <button class="secondary-btn" data-action="paymentUnpaid" type="button">Đơn chưa thanh toán</button>
-      </div>
-    </section>
-  `;
-}
-
-function shipperPaymentWaiting() {
-  state.currentStep = 3;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(4)}
-      ${titleBlock("Đơn chưa thanh toán", "Đã gửi thông báo cho người nhận", "Chờ người nhận thanh toán trước khi bỏ hàng vào tủ.")}
-      <div class="choice-grid">
-        <button class="primary-btn" data-action="receiverPays" type="button">Người nhận đã thanh toán</button>
-        <button class="danger-btn" data-route="shipperCancelled" type="button">Hủy giao hàng</button>
-      </div>
-    </section>
-  `;
-}
-
-function shipperCancelled() {
-  state.currentStep = 3;
-  return successScreen(4, 9, "Giao hàng bị hủy", "Đơn hàng chưa thanh toán. Thông báo hủy đã gửi cho người giao hàng.", "Quay về trang chủ", "home", "warning");
-}
-
-function shipperChooseCompartment() {
-  state.currentStep = 4;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(5)}
-      ${titleBlock("Chọn ngăn tủ", "Chọn kích thước và ngăn khả dụng", "Chỉ chọn ngăn sau khi đơn đã thanh toán.")}
-      <div class="choice-grid">
-        ${["Nhỏ", "Vừa", "Lớn"].map((size) => `<button class="secondary-btn" data-action="chooseSize" data-size="${size}" type="button">${size}</button>`).join("")}
-      </div>
-      <div class="list-stack">
-        ${["A01 - Nhỏ", "A04 - Vừa", "B02 - Lớn"].map((slot) => `<button class="order-card" data-action="chooseSlot" data-slot="${slot}" type="button"><span class="order-icon">${icon("inventory")}</span><span><strong>${slot}</strong><small class="muted">Còn trống</small></span>${icon("chevron_right")}</button>`).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function shipperDropoff() {
-  state.currentStep = 5;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(6)}
-      ${titleBlock("Bỏ hàng vào tủ", "Ngăn A04 đã mở", "Chụp minh chứng sau khi bỏ đúng kiện hàng vào tủ.")}
-      <div class="proof-card">
-        <span>${icon("photo_camera")}</span>
-        <div>
-          <strong>Mã vận đơn: ${state.draft.parcelCode}</strong>
-          <p class="muted">Ngăn A04 • Người nhận: ${state.draft.receiverName}</p>
-        </div>
-      </div>
-      <div class="choice-grid">
-        <button class="secondary-btn" data-action="photoProof" type="button">${icon("photo_camera")} Chụp ảnh minh chứng</button>
-        <button class="primary-btn" data-route="shipperClose" type="button">Xác nhận đã bỏ hàng</button>
-      </div>
-    </section>
-  `;
-}
-
-function shipperClose() {
-  state.currentStep = 6;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(7)}
-      ${titleBlock("Đóng cửa tủ", "Vui lòng đóng cửa ngăn A04", "Hệ thống chỉ hoàn tất khi cửa tủ đã đóng.")}
-      <div class="door-state warning">${icon("door_open")} Cửa ngăn A04 đang mở</div>
-      <button class="primary-btn" data-route="shipperDoorCheck" type="button">${icon("door_front")} Tôi đã đóng cửa</button>
-    </section>
-  `;
-}
-
-function shipperDoorCheck() {
-  state.currentStep = 6;
-  if (state.doorAttempt === 0) {
-    return alertScreen(7, 9, "Cửa tủ chưa đóng", "Vui lòng đóng cửa lại để hoàn tất giao hàng.", "shipperDoorRetry");
-  }
-  state.currentStep = 7;
-  return `
-    <section class="hero-card button-stack">
-      ${progress(8)}
-      ${titleBlock("Đang cập nhật giao hàng", "Cửa tủ đã đóng", "Hệ thống cập nhật trạng thái, gửi mã mở tủ và cộng thưởng.")}
-      ${statusTimeline([
-        ["done", "Cập nhật trạng thái: Đã giao hàng"],
-        ["done", `Gửi mã mở tủ ${state.otp} cho cư dân`],
-        ["done", "Ngăn tủ chuyển sang trạng thái đang chứa hàng"],
-        ["done", "Cộng thưởng 700đ"],
-      ])}
-      <button class="primary-btn" data-route="shipperDone" type="button">Hoàn tất</button>
-    </section>
-  `;
-}
-
-function shipperDone() {
-  state.currentStep = 8;
-  return successScreen(9, 9, "Giao hàng thành công", `Mã mở tủ ${state.otp} đã được gửi cho cư dân. Bạn nhận: 700đ.`, "Giao đơn tiếp theo", "shipperQr");
-}
-
 function statusTimeline(items) {
   return `
     <div class="status-timeline">
@@ -586,8 +898,26 @@ function statusTimeline(items) {
 }
 
 function field(label, key, placeholder) {
-  const value = key in state.draft ? state.draft[key] : state[key] || "";
-  return `<div class="field"><label>${label}</label><input data-field="${key}" value="${value}" placeholder="${placeholder}" /></div>`;
+  const value = readFieldValue(key);
+  return `<div class="field"><label>${label}</label><input data-field="${key}" value="${escapeHtml(value)}" placeholder="${placeholder}" /></div>`;
+}
+
+function readFieldValue(key) {
+  const profileMap = {
+    residentName: state.residentProfile.name,
+    residentPhone: state.residentProfile.phone,
+    residentAddress: state.residentProfile.address,
+    residentNote: state.residentProfile.defaultNote,
+    shipperName: state.shipperProfile.name,
+    shipperPhone: state.shipperProfile.phone,
+    shipperCompany: state.shipperProfile.company,
+    shipperBankAccount: state.shipperProfile.bankAccount,
+    shipperBankName: state.shipperProfile.bankName,
+    helperOrderCode: state.selectedHelperOrderId || helperOrders[0].id,
+  };
+  if (key in profileMap) return profileMap[key];
+  if (key in state.draft) return state.draft[key];
+  return state[key] || "";
 }
 
 function alertScreen(step, total, title, copy, action) {
@@ -621,15 +951,96 @@ function successScreen(step, total, title, copy, button, route, symbol = "task_a
   `;
 }
 
+function findSelectedOrder() {
+  return receiverOrders.find((item) => item.id === state.selectedOrderId) || helperOrders.find((item) => item.id === state.selectedHelperOrderId) || receiverOrders[0];
+}
+
+function formatMoney(value) {
+  return `${Number(value).toLocaleString("vi-VN")}đ`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  })[char]);
+}
+
+function startPaymentCountdown() {
+  window.clearTimeout(window.smartlockerPaymentTimer);
+  window.smartlockerPaymentTimer = window.setTimeout(() => {
+    if (state.route === "shipperPaymentWaiting" && !state.paymentWaitExpired) {
+      state.paymentWaitExpired = true;
+      render();
+    }
+  }, 180000);
+}
+
 async function handleAction(action, button) {
-  if (action === "quickScan") setRoute(state.role === "shipper" ? "shipperQr" : "receiverQr");
-  if (action === "manualLocker") showToast("Demo: đã nhập mã tủ B-04");
+  if (action === "quickScan" || action === "resetStart") {
+    state.lockerScanned = false;
+    state.role = "";
+    state.user = null;
+    localStorage.removeItem("smartlocker.pendingRole");
+    setRoute("lockerScan");
+  }
+  if (action === "manualLocker") showToast("Demo: đã nhập mã block tủ BLOCK-DH-001");
+  if (action === "scanLockerBlock") {
+    if (state.scanningLocker) return;
+    state.scanningLocker = true;
+    render();
+    window.setTimeout(() => {
+      state.scanningLocker = false;
+      state.lockerScanned = true;
+      showToast("Đã nhận diện block tủ B-04");
+      setRoute("lockerLocation");
+    }, 1600);
+  }
+  if (action === "continueAfterLocker") {
+    if (state.user && restoreRoleForEmail()) setRoute(state.role === "shipper" ? "home" : "home");
+    else setRoute("roleSelect");
+  }
+  if (action === "chooseResident") {
+    state.role = "resident";
+    if (state.user) {
+      saveRoleForEmail();
+      setRoute("residentProfileSetup");
+    } else {
+      setRoute("login");
+    }
+  }
+  if (action === "chooseShipper") {
+    state.role = "shipper";
+    if (state.user) {
+      saveRoleForEmail();
+      setRoute("shipperProfileSetup");
+    } else {
+      setRoute("login");
+    }
+  }
   if (action === "googleLogin") await signInWithGoogle();
-  if (action === "receiverQrDone") {
-    showToast("Đã xác định tủ: Sảnh A - Tầng 1");
+  if (action === "saveResidentProfile") {
+    saveRoleForEmail();
     setRoute("receiverOrdersScreen");
   }
+  if (action === "saveShipperProfile") {
+    saveRoleForEmail();
+    setRoute("shipperParcelScan");
+  }
   if (action === "selectReceiverOrder") {
+    state.selectedOrderId = button.dataset.order;
+    state.selectedHelperOrderId = "";
+    setRoute("receiverProcess");
+  }
+  if (action === "verifyHelper") {
+    if (!state.helperPhone || !state.helperOtp) showToast("Vui lòng nhập số điện thoại và OTP");
+    else setRoute("receiverHelperInfo");
+  }
+  if (action === "selectHelperOrder") {
+    state.selectedHelperOrderId = button.dataset.order;
     state.selectedOrderId = button.dataset.order;
     setRoute("receiverProcess");
   }
@@ -637,35 +1048,57 @@ async function handleAction(action, button) {
     state.doorAttempt = 1;
     setRoute("receiverDoorCheck");
   }
-  if (action === "shipperQrDone") {
-    showToast("Đã xác định tủ giao hàng B-04");
-    setRoute("shipperLogin");
+  if (action === "manualParcel") showToast("Demo: đã nhập mã đơn DH118");
+  if (action === "paymentPaid" || action === "receiverPays") {
+    state.paymentWaitExpired = false;
+    setRoute("shipperChooseCompartment");
   }
-  if (action === "shipperLoginDone") setRoute("shipperParcel");
-  if (action === "paymentPaid" || action === "receiverPays") setRoute("shipperChooseCompartment");
-  if (action === "paymentUnpaid") setRoute("shipperPaymentWaiting");
+  if (action === "paymentUnpaid") {
+    state.paymentWaitExpired = false;
+    setRoute("shipperPaymentWaiting");
+  }
+  if (action === "callReceiver") showToast(`Đang gọi ${state.draft.receiverPhone}`);
+  if (action === "expirePaymentWait") {
+    state.paymentWaitExpired = true;
+    render();
+  }
   if (action === "chooseSize") {
     state.draft.size = button.dataset.size;
-    showToast(`Đã chọn kích thước ${button.dataset.size}`);
+    render();
   }
   if (action === "chooseSlot") {
     state.draft.compartment = button.dataset.slot;
     setRoute("shipperDropoff");
   }
-  if (action === "photoProof") showToast("Đã lưu ảnh minh chứng demo");
+  if (action === "photoProof") {
+    state.draft.proofReady = true;
+    showToast("Đã lưu ảnh minh chứng demo");
+    render();
+  }
   if (action === "shipperDoorRetry") {
     state.doorAttempt = 1;
     setRoute("shipperDoorCheck");
   }
+  if (action === "completeShipperDelivery") {
+    state.shipperBalance += 700;
+    state.history.unshift({ title: state.draft.parcelCode, status: `Đã giao thành công, cộng 700đ. Số dư: ${formatMoney(state.shipperBalance)}` });
+    setRoute("shipperDone");
+  }
   if (action === "switchRole") {
     state.role = state.role === "shipper" ? "resident" : "shipper";
-    setRoute("home");
+    saveRoleForEmail();
+    setRoute("roleSelect");
   }
 }
 
 async function signInWithGoogle() {
+  const intendedRole = state.role;
+  localStorage.setItem("smartlocker.pendingRole", intendedRole);
   if (!hasSupabase) {
-    showToast("Chưa cấu hình Supabase. Đang dùng demo local.");
+    state.user = { name: intendedRole === "shipper" ? state.shipperProfile.name : state.residentProfile.name, email: "demo@smartlocker.vn" };
+    state.role = intendedRole;
+    saveRoleForEmail();
+    setRoute(intendedRole === "shipper" ? "shipperProfileSetup" : "residentProfileSetup");
     return;
   }
   await supabaseClient.auth.signInWithOAuth({
@@ -691,8 +1124,22 @@ document.addEventListener("click", (event) => {
 document.addEventListener("input", (event) => {
   const fieldKey = event.target.dataset.field;
   if (!fieldKey) return;
-  if (fieldKey in state.draft) state.draft[fieldKey] = event.target.value;
-  else state[fieldKey] = event.target.value;
+  const value = event.target.value;
+  const setters = {
+    residentName: () => state.residentProfile.name = value,
+    residentPhone: () => state.residentProfile.phone = value,
+    residentAddress: () => state.residentProfile.address = value,
+    residentNote: () => state.residentProfile.defaultNote = value,
+    shipperName: () => state.shipperProfile.name = value,
+    shipperPhone: () => state.shipperProfile.phone = value,
+    shipperCompany: () => state.shipperProfile.company = value,
+    shipperBankAccount: () => state.shipperProfile.bankAccount = value,
+    shipperBankName: () => state.shipperProfile.bankName = value,
+    helperOrderCode: () => state.selectedHelperOrderId = value,
+  };
+  if (setters[fieldKey]) setters[fieldKey]();
+  else if (fieldKey in state.draft) state.draft[fieldKey] = value;
+  else state[fieldKey] = value;
 });
 
 (async function init() {
@@ -703,6 +1150,15 @@ document.addEventListener("input", (event) => {
         name: data.user.email?.split("@")[0] || "google_user",
         email: data.user.email,
       };
+      const pendingRole = localStorage.getItem("smartlocker.pendingRole");
+      if (pendingRole) {
+        state.role = pendingRole;
+        localStorage.removeItem("smartlocker.pendingRole");
+        saveRoleForEmail();
+        state.route = pendingRole === "shipper" ? "shipperProfileSetup" : "residentProfileSetup";
+      } else if (restoreRoleForEmail()) {
+        state.route = "lockerScan";
+      }
     }
   }
   render();
