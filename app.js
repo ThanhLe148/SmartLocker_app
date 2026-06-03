@@ -229,10 +229,22 @@ function showToast(message) {
 }
 
 function render() {
+  window.clearTimeout(window.smartlockerAutoTimer);
   updateChrome();
   view.innerHTML = (routes[state.route] || lockerScan)();
   stepPanel.innerHTML = stepper();
   if (state.route === "shipperPaymentWaiting" && !state.paymentWaitExpired) startPaymentCountdown();
+  scheduleAutoTransition();
+}
+
+function scheduleAutoTransition() {
+  const autoRoutes = {
+    receiverProcess: () => setRoute("receiverDone"),
+    shipperClose: () => completeShipperDelivery(),
+  };
+  const next = autoRoutes[state.route];
+  if (!next) return;
+  window.smartlockerAutoTimer = window.setTimeout(next, 2200);
 }
 
 function updateChrome() {
@@ -606,7 +618,13 @@ function receiverProcess() {
         ["current", "Chờ bạn lấy hàng và đóng cửa"],
         ["todo", "Cập nhật trạng thái"],
       ])}
-      <button class="primary-btn" data-route="receiverClose" type="button">${icon("inventory_2")} Tôi đã lấy hàng</button>
+      <div class="system-wait-card">
+        <span class="mini-spinner" aria-hidden="true"></span>
+        <div>
+          <strong>Hệ thống tự chuyển bước khi cửa đóng</strong>
+          <p class="muted">Lấy hàng ra rồi đóng cửa tủ.</p>
+        </div>
+      </div>
     </section>
   `;
 }
@@ -826,7 +844,7 @@ function shipperProof() {
   state.currentStep = 6;
   return `
     <section class="hero-card button-stack">
-      ${backButton("shipperDropoff", "Quay lại bỏ hàng")}
+      ${backButton("shipperChooseCompartment", "Chọn lại ngăn")}
       ${progress(7)}
       ${titleBlock("Chụp ảnh minh chứng", `Ngăn ${state.draft.compartment}`)}
       <div class="capture-card ${state.draft.proofCameraOpen ? "camera-live" : ""}">
@@ -841,20 +859,26 @@ function shipperProof() {
         <button class="secondary-btn" data-action="captureProof" type="button">${icon("photo_camera")} Chụp ảnh</button>
         ${state.draft.proofReady ? `<button class="secondary-btn" data-action="uploadProof" type="button">${icon("upload")} Tải ảnh lên</button>` : `<button class="secondary-btn" type="button" disabled>${icon("upload")} Tải ảnh lên</button>`}
       </div>
-      ${state.draft.proofReady && state.draft.proofUploaded ? `<button class="primary-btn" data-route="shipperDropoff" type="button">Quay lại xác nhận bỏ hàng</button>` : ""}
+      ${state.draft.proofReady && state.draft.proofUploaded ? `<button class="primary-btn" data-route="shipperClose" type="button">Xác nhận đã bỏ hàng</button>` : `<button class="primary-btn" type="button" disabled>Xác nhận đã bỏ hàng</button>`}
     </section>
   `;
 }
 
 function shipperClose() {
-  state.currentStep = 6;
+  state.currentStep = 7;
   return `
     <section class="hero-card button-stack">
-      ${backButton("shipperDropoff", "Quay lại xác minh bỏ hàng")}
-      ${progress(7)}
-      ${titleBlock("Đóng cửa tủ", `Vui lòng đóng cửa ngăn ${state.draft.compartment}`)}
+      ${backButton("shipperProof", "Quay lại xác minh bỏ hàng")}
+      ${progress(8)}
+      ${titleBlock("Đang kiểm tra cửa tủ", `Đang chờ cửa ngăn ${state.draft.compartment} đóng`)}
       <div class="door-state warning">${icon("door_open")} Cửa ngăn ${state.draft.compartment} đang mở</div>
-      <button class="primary-btn" data-route="shipperDoorCheck" type="button">${icon("door_front")} Tôi đã đóng cửa</button>
+      <div class="system-wait-card">
+        <span class="mini-spinner" aria-hidden="true"></span>
+        <div>
+          <strong>Hệ thống tự xác nhận khi cửa đóng</strong>
+          <p class="muted">Vui lòng đóng cửa tủ để hoàn tất giao hàng.</p>
+        </div>
+      </div>
     </section>
   `;
 }
@@ -882,7 +906,21 @@ function shipperDoorCheck() {
 
 function shipperDone() {
   state.currentStep = 7;
-  return successScreen(8, 8, "Giao hàng thành công", `Bạn đã nhận 700đ. Số dư hiện tại: ${formatMoney(state.shipperBalance)}.`, "Giao đơn tiếp theo", "shipperParcelScan");
+  return `
+    <section class="hero-card button-stack">
+      ${progress(8)}
+      ${titleBlock("Hoàn tất giao hàng", "Cửa tủ đã đóng")}
+      <div class="status-card">
+        <div class="success-icon">${icon("task_alt")}</div>
+        <h2>Giao hàng thành công</h2>
+        <p class="lead">Bạn đã nhận 700đ. Số dư hiện tại: ${formatMoney(state.shipperBalance)}.</p>
+      </div>
+      <div class="choice-grid">
+        <button class="primary-btn" data-route="shipperParcelScan" type="button">Giao đơn tiếp theo</button>
+        <button class="secondary-btn" data-route="history" type="button">Xem lịch sử</button>
+      </div>
+    </section>
+  `;
 }
 
 function orders() {
@@ -1216,7 +1254,7 @@ async function handleAction(action, button) {
     state.draft.proofReady = false;
     state.draft.proofCameraOpen = false;
     state.draft.proofUploaded = false;
-    setRoute("shipperDropoff");
+    setRoute("shipperProof");
   }
   if (action === "openProofCamera") {
     state.draft.proofCameraOpen = true;
@@ -1242,15 +1280,19 @@ async function handleAction(action, button) {
     setRoute("shipperDoorCheck");
   }
   if (action === "completeShipperDelivery") {
-    state.shipperBalance += 700;
-    state.history.unshift({ title: state.draft.parcelCode, status: `Đã giao thành công, cộng 700đ. Số dư: ${formatMoney(state.shipperBalance)}` });
-    setRoute("shipperDone");
+    completeShipperDelivery();
   }
   if (action === "switchRole") {
     state.role = state.role === "shipper" ? "resident" : "shipper";
     saveRoleForEmail();
     setRoute("roleSelect");
   }
+}
+
+function completeShipperDelivery() {
+  state.shipperBalance += 700;
+  state.history.unshift({ title: state.draft.parcelCode, status: `Đã giao thành công, cộng 700đ. Số dư: ${formatMoney(state.shipperBalance)}` });
+  setRoute("shipperDone");
 }
 
 function signInWithDemo(accountId) {

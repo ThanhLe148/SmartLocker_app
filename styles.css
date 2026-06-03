@@ -539,6 +539,22 @@ figure {
   align-items: center;
 }
 
+.system-wait-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  padding: 18px;
+  box-shadow: 0 8px 22px rgba(22, 40, 38, 0.08);
+}
+
+.system-wait-card strong {
+  color: var(--brand-2);
+  font-size: 17px;
+}
+
 .mini-spinner {
   width: 22px;
   height: 22px;
@@ -1075,11 +1091,7 @@ figure {
   gap: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background:
-    linear-gradient(90deg, rgba(21, 95, 89, 0.08) 1px, transparent 1px),
-    linear-gradient(rgba(21, 95, 89, 0.08) 1px, transparent 1px),
-    #f8fcfb;
-  background-size: 30px 30px, 30px 30px, auto;
+  background: linear-gradient(145deg, #fbfdfd, #f1f7f6);
   padding: 22px;
   text-align: center;
 }
