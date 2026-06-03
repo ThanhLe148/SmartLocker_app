@@ -1,3 +1,45 @@
+// === MQTT CONFIGURATION ===
+let mqttClient = null;
+const MQTT_BROKER = "test.mosquitto.org";
+const MQTT_PORT = 8081; 
+const MQTT_TOPIC = "locker_may/command"; 
+
+function setupMQTT() {
+  const clientId = "WebApp_" + Math.random().toString(16).substr(2, 8);
+  mqttClient = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, clientId);
+
+  mqttClient.onConnectionLost = function (responseObject) {
+    if (responseObject.errorCode !== 0) {
+      console.log("MQTT Connection Lost: " + responseObject.errorMessage);
+      setTimeout(setupMQTT, 3000); 
+    }
+  };
+
+  mqttClient.connect({
+    useSSL: true, 
+    onSuccess: function () {
+      console.log("Web App successfully connected to MQTT Broker");
+    },
+    onFailure: function (error) {
+      console.log("MQTT Connection Failed: ", error.errorMessage);
+    }
+  });
+}
+
+// === SEND UNLOCK COMMAND ===
+function sendUnlockCommand() {
+  if (mqttClient && mqttClient.isConnected()) {
+    const cmd = "UNLOCK"; 
+    const message = new Paho.MQTT.Message(cmd);
+    message.destinationName = MQTT_TOPIC;
+    mqttClient.send(message);
+    console.log("Sent unlock command: " + cmd);
+  } else {
+    showToast("Error: Reconnecting to locker system!");
+  }
+}
+
+//ORG CODES FROM HERE 
 const config = window.SUPABASE_CONFIG || {};
 const hasSupabase = Boolean(config.url && config.anonKey && window.supabase);
 const supabaseClient = hasSupabase ? window.supabase.createClient(config.url, config.anonKey) : null;
@@ -1129,9 +1171,11 @@ async function handleAction(action, button) {
     saveRoleForEmail();
     setRoute("shipperParcelScan");
   }
+  //Trigger MQTT customer
   if (action === "selectReceiverOrder") {
     state.selectedOrderId = button.dataset.order;
     state.selectedHelperOrderId = "";
+    sendUnlockCommand();
     setRoute("receiverProcess");
   }
   if (action === "verifyHelper") {
@@ -1165,8 +1209,10 @@ async function handleAction(action, button) {
     state.draft.size = button.dataset.size;
     render();
   }
+  //MQTT trigger for shipper
   if (action === "chooseSlot") {
     state.draft.compartment = button.dataset.slot;
+    sendUnlockCommand();
     state.draft.proofReady = false;
     state.draft.proofCameraOpen = false;
     state.draft.proofUploaded = false;
@@ -1274,6 +1320,7 @@ document.addEventListener("input", updateField);
 document.addEventListener("change", updateField);
 
 (async function init() {
+  setupMQTT();
   if (hasSupabase) {
     const { data } = await supabaseClient.auth.getUser();
     if (data?.user) {
