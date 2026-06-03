@@ -38,6 +38,9 @@ const compartmentSlots = {
   Lớn: ["C01", "C04"],
 };
 
+const deliveryApps = ["Shopee Express", "TikTok Shop", "Lazada Logistics", "Giao Hàng Nhanh", "Giao Hàng Tiết Kiệm", "J&T Express", "Viettel Post"];
+const bankOptions = ["MBBANK - Ngân Hàng Quân Đội", "VCB - Vietcombank", "TCB - Techcombank", "ACB - Á Châu", "BIDV", "VietinBank", "VPBank"];
+
 const profiles = JSON.parse(localStorage.getItem("smartlocker.profiles") || "{}");
 
 const state = {
@@ -64,19 +67,22 @@ const state = {
     size: "Vừa",
     compartment: "B04",
     proofReady: false,
+    proofCameraOpen: false,
+    proofUploaded: false,
   },
   residentProfile: JSON.parse(localStorage.getItem("smartlocker.residentProfile") || "null") || {
-    name: "Nguyễn Văn A",
-    phone: "0901234567",
-    address: "Căn A1204, Khu nhà ở xã hội Định Hòa",
-    defaultNote: "Nhận hàng ngoài giờ hành chính",
+    name: "",
+    phone: "",
+    address: "",
+    defaultNote: "",
   },
   shipperProfile: JSON.parse(localStorage.getItem("smartlocker.shipperProfile") || "null") || {
-    name: "Lê Minh Shipper",
-    phone: "0987654321",
-    company: "Đối tác giao hàng SmartLocker",
-    bankAccount: "9704 1234 5678 9012",
-    bankName: "VCB - Lê Minh",
+    name: "",
+    phone: "",
+    company: "",
+    bankName: "",
+    bankAccountOwner: "",
+    bankAccount: "",
     approved: true,
   },
   history: JSON.parse(localStorage.getItem("smartlocker.history") || "null") || [
@@ -111,6 +117,7 @@ const routes = {
   shipperCancelled,
   shipperChooseCompartment,
   shipperDropoff,
+  shipperProof,
   shipperClose,
   shipperDoorCheck,
   shipperDone,
@@ -277,7 +284,7 @@ function lockerScan() {
   return `
     <div class="page">
       <section class="hero-card button-stack">
-        ${titleBlock("SmartLocker", "Quét mã block tủ", "Mỗi block tủ có một mã QR duy nhất. Hãy quét mã dán trên block tủ trước khi giao hoặc nhận hàng.")}
+        ${titleBlock("SmartLocker", "Quét mã block tủ")}
         <div class="camera-card locker-camera ${scanning ? "is-scanning" : ""}">
           <div class="scan-frame locker-scan-frame">
             <span class="corner-a"></span><span class="corner-b"></span>
@@ -316,14 +323,12 @@ function lockerLocation() {
         ${metric("Ngăn lớn trống", lockerBlock.compartments.large, "deployed_code")}
         ${metric("Trạng thái", "Online", "wifi")}
       </section>
-      <section class="action-panel">
+      <section class="action-panel location-ready-panel">
         <div>
           <h2>Vị trí tủ đã sẵn sàng</h2>
-        </div>
-        <div class="choice-grid">
           <button class="secondary-btn" data-route="lockerMap" type="button">${icon("map")} Xem bản đồ tủ</button>
-          <button class="primary-btn" data-route="roleSelect" type="button">Tiếp theo</button>
         </div>
+        <button class="primary-btn next-cta" data-route="roleSelect" type="button">Tiếp theo</button>
       </section>
     </div>
   `;
@@ -344,13 +349,6 @@ function lockerMap() {
           </div>
           <div class="map-pin future one">${icon("add_location")} Điểm tủ tương lai</div>
           <div class="map-pin future two">${icon("add_location")} Đang cập nhật</div>
-        </div>
-        <div class="scale-note">
-          ${icon("hub")}
-          <div>
-            <strong>Thiết kế sẵn cho khả năng mở rộng</strong>
-            <p class="muted">Khi có thêm block tủ, màn hình này sẽ hiển thị nhiều địa điểm, trạng thái online/offline và số ngăn còn trống theo từng khu.</p>
-          </div>
         </div>
         <button class="primary-btn" data-action="continueAfterLocker" type="button">Tiếp tục với block tủ này</button>
       </section>
@@ -448,11 +446,10 @@ function shipperDashboard() {
       <section class="action-panel">
         <div>
           <h2>Bắt đầu gửi hàng</h2>
-          <p class="muted">Quét mã đơn hàng, kiểm tra thanh toán rồi chọn ngăn trống tương ứng.</p>
         </div>
-        <div class="choice-grid">
-          <button class="primary-btn tall-btn" data-route="shipperParcelScan" type="button">${icon("barcode_scanner")} Quét mã đơn hàng</button>
-          <button class="secondary-btn tall-btn" data-route="orders" type="button">${icon("list_alt")} Đơn đang xử lý</button>
+        <div class="home-action-stack">
+          <button class="primary-btn parcel-scan-cta" data-route="shipperParcelScan" type="button">${icon("barcode_scanner")} Quét mã đơn hàng</button>
+          <button class="secondary-btn" data-route="orders" type="button">${icon("list_alt")} Đơn đang xử lý</button>
         </div>
       </section>
       <section class="metric-grid">
@@ -600,13 +597,14 @@ function shipperProfileSetup() {
     <section class="hero-card button-stack">
       ${backButton("roleSelect", "Đổi vai trò")}
       ${progress(3)}
-      ${titleBlock("Thông tin shipper", "Thiết lập tài khoản giao hàng", "Thông tin giống tài khoản shipper online, dùng để hiển thị thanh toán và liên hệ.")}
+      ${titleBlock("Thông tin shipper", "Thiết lập tài khoản giao hàng")}
       <div class="form-stack">
-        ${field("Họ tên shipper", "shipperName", state.shipperProfile.name)}
-        ${field("Số điện thoại", "shipperPhone", state.shipperProfile.phone)}
-        ${field("Đơn vị giao hàng", "shipperCompany", state.shipperProfile.company)}
-        ${field("Số tài khoản nhận COD", "shipperBankAccount", state.shipperProfile.bankAccount)}
-        ${field("Ngân hàng / Chủ tài khoản", "shipperBankName", state.shipperProfile.bankName)}
+        ${field("Họ tên shipper", "shipperName", "Nhập họ tên shipper")}
+        ${field("Số điện thoại", "shipperPhone", "Nhập số điện thoại")}
+        ${selectField("Đơn vị giao hàng", "shipperCompany", deliveryApps, "Chọn đơn vị giao hàng")}
+        ${bankField("Ngân hàng", "shipperBankName", bankOptions, "Nhập hoặc chọn ngân hàng")}
+        ${field("Tên chủ tài khoản", "shipperBankAccountOwner", "Nhập tên chủ tài khoản")}
+        ${field("Số tài khoản nhận COD", "shipperBankAccount", "Nhập số tài khoản nhận COD")}
       </div>
       <button class="primary-btn" data-action="saveShipperProfile" type="button">Lưu và quét đơn hàng</button>
     </section>
@@ -619,7 +617,7 @@ function shipperParcelScan() {
     <section class="hero-card button-stack">
       ${backButton("home", "Quay về trang chủ")}
       ${progress(4)}
-      ${titleBlock("Quét mã đơn hàng", "Đưa mã vận đơn vào khung quét", "Sau khi quét, hệ thống hiển thị thông tin người nhận để shipper kiểm tra.")}
+      ${titleBlock("Quét mã đơn hàng", "Đưa mã vận đơn vào khung quét")}
       <div class="camera-card">
         <div class="scan-frame">
           <span class="corner-a"></span><span class="corner-b"></span>
@@ -640,7 +638,8 @@ function shipperParcelDetail() {
     <section class="hero-card button-stack">
       ${backButton("shipperParcelScan", "Quay lại quét đơn")}
       ${progress(4)}
-      ${titleBlock("Thông tin người nhận", state.draft.receiverName, "Shipper kiểm tra thông tin trước khi xác nhận trạng thái thanh toán.")}
+      ${titleBlock("Thông tin người nhận", state.draft.receiverName)}
+      <div class="notice-tab">${icon("info")}<strong>Shipper kiểm tra thông tin trước khi xác nhận trạng thái thanh toán.</strong></div>
       <div class="profile-card">
         <div class="avatar large">A</div>
         <div>
@@ -661,7 +660,7 @@ function shipperPayment() {
     <section class="hero-card button-stack">
       ${backButton("shipperParcelDetail", "Quay về thông tin người nhận")}
       ${progress(5)}
-      ${titleBlock("Thanh toán", "Đơn hàng đã thanh toán chưa?", "Nếu chưa thanh toán, hệ thống sẽ gửi QR và số tài khoản của shipper cho người nhận.")}
+      ${titleBlock("Thanh toán", "Đơn hàng đã thanh toán chưa?")}
       <div class="choice-grid">
         <button class="primary-btn" data-action="paymentPaid" type="button">Đã thanh toán</button>
         <button class="secondary-btn" data-action="paymentUnpaid" type="button">Chưa thanh toán</button>
@@ -680,14 +679,25 @@ function shipperPaymentWaiting() {
       <div class="payment-card">
         <div class="fake-qr">${icon("qr_code_2")}</div>
         <div>
-          <strong>${state.shipperProfile.bankName}</strong>
-          <p class="muted">Số tài khoản: ${state.shipperProfile.bankAccount}</p>
+          <strong>${state.shipperProfile.bankName || "Ngân hàng nhận COD"}</strong>
+          <p class="muted">Số tài khoản: ${state.shipperProfile.bankAccount || "Chưa nhập"}</p>
+          <p class="muted">Chủ tài khoản: ${state.shipperProfile.bankAccountOwner || "Chưa nhập"}</p>
           <p class="muted">Nội dung: ${state.draft.parcelCode}</p>
         </div>
       </div>
       <div class="status-timeline">
         <div class="done">${icon("task_alt")}<strong>Đã thông báo cho người nhận</strong></div>
-        <div class="current">${icon("hourglass_top")}<strong>${state.paymentWaitExpired ? "Đã quá 3 phút" : "Đang chờ thanh toán trong 3 phút"}</strong></div>
+        <div class="current payment-loading-row">
+          ${state.paymentWaitExpired ? icon("hourglass_disabled") : `<span class="mini-spinner" aria-hidden="true"></span>`}
+          <strong>${state.paymentWaitExpired ? "Đã quá 3 phút" : "Đang chờ thanh toán trong 3 phút"}</strong>
+        </div>
+        ${!state.paymentWaitExpired ? `
+          <div class="waiting-copy" aria-live="polite">
+            <span>Đang kiểm tra trạng thái thanh toán...</span>
+            <span>Giữ kết nối để nhận phản hồi mới nhất...</span>
+            <span>Có thể gọi người nhận nếu cần xác nhận nhanh.</span>
+          </div>
+        ` : ""}
       </div>
       <div class="choice-grid">
         <button class="primary-btn" data-action="receiverPays" type="button">Người nhận đã thanh toán</button>
@@ -744,9 +754,33 @@ function shipperDropoff() {
         </div>
       </div>
       <div class="choice-grid">
-        <button class="secondary-btn" data-action="photoProof" type="button">${icon("photo_camera")} Chụp ảnh minh chứng</button>
-        <button class="primary-btn" data-route="shipperClose" type="button">Xác nhận đã bỏ hàng</button>
+        <button class="secondary-btn" data-action="openProofCamera" type="button">${icon("photo_camera")} Chụp ảnh minh chứng</button>
+        ${state.draft.proofReady && state.draft.proofUploaded ? `<button class="primary-btn" data-route="shipperClose" type="button">Xác nhận đã bỏ hàng</button>` : `<button class="primary-btn" type="button" disabled>Xác nhận đã bỏ hàng</button>`}
       </div>
+    </section>
+  `;
+}
+
+function shipperProof() {
+  state.currentStep = 6;
+  return `
+    <section class="hero-card button-stack">
+      ${backButton("shipperDropoff", "Quay lại bỏ hàng")}
+      ${progress(7)}
+      ${titleBlock("Chụp ảnh minh chứng", `Ngăn ${state.draft.compartment}`)}
+      <div class="capture-card ${state.draft.proofCameraOpen ? "camera-live" : ""}">
+        <div class="capture-frame">
+          ${state.draft.proofReady ? icon("check_circle") : icon("photo_camera")}
+          ${state.draft.proofCameraOpen && !state.draft.proofReady ? `<span class="scan-line"></span>` : ""}
+        </div>
+        <strong>${state.draft.proofReady ? "Đã chụp ảnh kiện hàng" : "Màn hình chụp ảnh kiện hàng"}</strong>
+        <p class="muted">${state.draft.proofReady ? "Tiếp tục tải ảnh lên để lưu minh chứng." : "Đặt kiện hàng trong khung rồi bấm chụp ảnh."}</p>
+      </div>
+      <div class="choice-grid">
+        <button class="secondary-btn" data-action="captureProof" type="button">${icon("photo_camera")} Chụp ảnh</button>
+        ${state.draft.proofReady ? `<button class="secondary-btn" data-action="uploadProof" type="button">${icon("upload")} Tải ảnh lên</button>` : `<button class="secondary-btn" type="button" disabled>${icon("upload")} Tải ảnh lên</button>`}
+      </div>
+      ${state.draft.proofReady && state.draft.proofUploaded ? `<button class="primary-btn" data-route="shipperDropoff" type="button">Quay lại xác nhận bỏ hàng</button>` : ""}
     </section>
   `;
 }
@@ -757,7 +791,7 @@ function shipperClose() {
     <section class="hero-card button-stack">
       ${backButton("shipperDropoff", "Quay lại xác minh bỏ hàng")}
       ${progress(7)}
-      ${titleBlock("Đóng cửa tủ", `Vui lòng đóng cửa ngăn ${state.draft.compartment}`, "Sau khi cửa đóng, hệ thống gửi thông báo và cập nhật đơn cho người nhận.")}
+      ${titleBlock("Đóng cửa tủ", `Vui lòng đóng cửa ngăn ${state.draft.compartment}`)}
       <div class="door-state warning">${icon("door_open")} Cửa ngăn ${state.draft.compartment} đang mở</div>
       <button class="primary-btn" data-route="shipperDoorCheck" type="button">${icon("door_front")} Tôi đã đóng cửa</button>
     </section>
@@ -773,7 +807,7 @@ function shipperDoorCheck() {
     <section class="hero-card button-stack">
       ${backButton("shipperClose", "Quay lại đóng tủ")}
       ${progress(8)}
-      ${titleBlock("Đang cập nhật giao hàng", "Cửa tủ đã đóng", "Hệ thống cập nhật đơn hàng, gửi mã mở tủ và cộng 700đ vào tài khoản shipper.")}
+      ${titleBlock("Đang cập nhật giao hàng", "Cửa tủ đã đóng")}
       ${statusTimeline([
         ["done", "Xác nhận cửa tủ đã đóng"],
         ["done", "Gửi thông báo và mã mở tủ cho người nhận"],
@@ -908,6 +942,32 @@ function field(label, key, placeholder) {
   return `<div class="field"><label>${label}</label><input data-field="${key}" value="${escapeHtml(value)}" placeholder="${placeholder}" /></div>`;
 }
 
+function selectField(label, key, options, placeholder) {
+  const value = readFieldValue(key);
+  return `
+    <div class="field">
+      <label>${label}</label>
+      <select data-field="${key}">
+        <option value="">${placeholder}</option>
+        ${options.map((option) => `<option value="${escapeHtml(option)}" ${value === option ? "selected" : ""}>${option}</option>`).join("")}
+      </select>
+    </div>
+  `;
+}
+
+function bankField(label, key, options, placeholder) {
+  const value = readFieldValue(key);
+  return `
+    <div class="field">
+      <label>${label}</label>
+      <input data-field="${key}" value="${escapeHtml(value)}" placeholder="${placeholder}" list="bank-options" autocomplete="off" />
+      <datalist id="bank-options">
+        ${options.map((option) => `<option value="${escapeHtml(option)}"></option>`).join("")}
+      </datalist>
+    </div>
+  `;
+}
+
 function readFieldValue(key) {
   const profileMap = {
     residentName: state.residentProfile.name,
@@ -918,6 +978,7 @@ function readFieldValue(key) {
     shipperPhone: state.shipperProfile.phone,
     shipperCompany: state.shipperProfile.company,
     shipperBankAccount: state.shipperProfile.bankAccount,
+    shipperBankAccountOwner: state.shipperProfile.bankAccountOwner,
     shipperBankName: state.shipperProfile.bankName,
     helperOrderCode: state.selectedHelperOrderId || helperOrders[0].id,
   };
@@ -1074,11 +1135,28 @@ async function handleAction(action, button) {
   }
   if (action === "chooseSlot") {
     state.draft.compartment = button.dataset.slot;
+    state.draft.proofReady = false;
+    state.draft.proofCameraOpen = false;
+    state.draft.proofUploaded = false;
     setRoute("shipperDropoff");
   }
-  if (action === "photoProof") {
+  if (action === "openProofCamera") {
+    state.draft.proofCameraOpen = true;
+    setRoute("shipperProof");
+  }
+  if (action === "captureProof") {
+    state.draft.proofCameraOpen = true;
     state.draft.proofReady = true;
-    showToast("Đã lưu ảnh minh chứng demo");
+    showToast("Đã chụp ảnh minh chứng demo");
+    render();
+  }
+  if (action === "uploadProof") {
+    if (!state.draft.proofReady) {
+      showToast("Vui lòng chụp ảnh trước khi tải lên");
+      return;
+    }
+    state.draft.proofUploaded = true;
+    showToast("Đã tải ảnh minh chứng lên");
     render();
   }
   if (action === "shipperDoorRetry") {
@@ -1127,7 +1205,7 @@ document.addEventListener("click", (event) => {
   }
 });
 
-document.addEventListener("input", (event) => {
+function updateField(event) {
   const fieldKey = event.target.dataset.field;
   if (!fieldKey) return;
   const value = event.target.value;
@@ -1140,13 +1218,17 @@ document.addEventListener("input", (event) => {
     shipperPhone: () => state.shipperProfile.phone = value,
     shipperCompany: () => state.shipperProfile.company = value,
     shipperBankAccount: () => state.shipperProfile.bankAccount = value,
+    shipperBankAccountOwner: () => state.shipperProfile.bankAccountOwner = value,
     shipperBankName: () => state.shipperProfile.bankName = value,
     helperOrderCode: () => state.selectedHelperOrderId = value,
   };
   if (setters[fieldKey]) setters[fieldKey]();
   else if (fieldKey in state.draft) state.draft[fieldKey] = value;
   else state[fieldKey] = value;
-});
+}
+
+document.addEventListener("input", updateField);
+document.addEventListener("change", updateField);
 
 (async function init() {
   if (hasSupabase) {
