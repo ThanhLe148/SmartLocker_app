@@ -244,7 +244,7 @@ function scheduleAutoTransition() {
   };
   const next = autoRoutes[state.route];
   if (!next) return;
-  window.smartlockerAutoTimer = window.setTimeout(next, 2200);
+  window.smartlockerAutoTimer = window.setTimeout(next, 4500);
 }
 
 function updateChrome() {
