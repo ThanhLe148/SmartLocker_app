@@ -40,6 +40,10 @@ const compartmentSlots = {
 
 const deliveryApps = ["Shopee Express", "TikTok Shop", "Lazada Logistics", "Giao Hàng Nhanh", "Giao Hàng Tiết Kiệm", "J&T Express", "Viettel Post"];
 const bankOptions = ["MBBANK - Ngân Hàng Quân Đội", "VCB - Vietcombank", "TCB - Techcombank", "ACB - Á Châu", "BIDV", "VietinBank", "VPBank"];
+const demoAccounts = [
+  { id: "demo_one", name: "Demo Account 1", email: "demo1@smartlocker.vn" },
+  { id: "demo_two", name: "Demo Account 2", email: "demo2@smartlocker.vn" },
+];
 
 const profiles = JSON.parse(localStorage.getItem("smartlocker.profiles") || "{}");
 
@@ -392,6 +396,14 @@ function login() {
         <div class="current">${icon("mail")}<strong>Chờ xác thực Gmail</strong></div>
       </div>
       <button class="primary-btn" data-action="googleLogin" type="button">${icon("mail")} Đăng nhập bằng Gmail</button>
+      <div class="demo-account-grid">
+        ${demoAccounts.map((account) => `
+          <button class="secondary-btn demo-account-btn" data-action="demoLogin" data-account="${account.id}" type="button">
+            ${icon("person")}
+            <span><strong>${account.name}</strong><small>${account.email}</small></span>
+          </button>
+        `).join("")}
+      </div>
       <button class="secondary-btn" data-route="roleSelect" type="button">Đổi vai trò</button>
     </section>
   `;
@@ -1108,6 +1120,7 @@ async function handleAction(action, button) {
     }
   }
   if (action === "googleLogin") await signInWithGoogle();
+  if (action === "demoLogin") signInWithDemo(button.dataset.account);
   if (action === "saveResidentProfile") {
     saveRoleForEmail();
     setRoute("receiverOrdersScreen");
@@ -1192,6 +1205,17 @@ async function handleAction(action, button) {
     saveRoleForEmail();
     setRoute("roleSelect");
   }
+}
+
+function signInWithDemo(accountId) {
+  const intendedRole = state.role;
+  const account = demoAccounts.find((item) => item.id === accountId) || demoAccounts[0];
+  localStorage.setItem("smartlocker.pendingRole", intendedRole);
+  state.user = { name: account.name, email: account.email };
+  state.role = intendedRole;
+  saveRoleForEmail();
+  showToast(`Đã đăng nhập ${account.name}`);
+  setRoute(intendedRole === "shipper" ? "shipperProfileSetup" : "residentProfileSetup");
 }
 
 async function signInWithGoogle() {

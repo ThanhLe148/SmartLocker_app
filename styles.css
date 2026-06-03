@@ -813,6 +813,29 @@ figure {
   min-width: 0;
 }
 
+.demo-account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.demo-account-btn {
+  justify-content: flex-start;
+  min-height: 72px;
+  text-align: left;
+}
+
+.demo-account-btn span:not(.material-symbols-outlined) {
+  display: grid;
+  gap: 3px;
+}
+
+.demo-account-btn small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .role-card {
   gap: 12px;
   min-height: 96px;
@@ -1425,6 +1448,7 @@ figure {
   .hero-grid,
   .role-grid,
   .choice-grid,
+  .demo-account-grid,
   .action-panel,
   .dashboard-hero {
     grid-template-columns: 1fr;
