@@ -653,7 +653,10 @@ function shipperParcelDetail() {
         </div>
       </div>
       <div class="metric-row"><span>Mã đơn hàng</span><strong>${state.draft.parcelCode}</strong></div>
-      <button class="primary-btn" data-route="shipperPayment" type="button">Kiểm tra thanh toán</button>
+      <div class="choice-grid">
+        <button class="primary-btn" data-action="paymentPaid" type="button">Đã thanh toán</button>
+        <button class="secondary-btn" data-action="paymentUnpaid" type="button">Chưa thanh toán</button>
+      </div>
     </section>
   `;
 }
