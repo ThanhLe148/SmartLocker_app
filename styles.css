@@ -1315,6 +1315,10 @@ figure {
   font-weight: 850;
 }
 
+.nav-item.is-hidden {
+  display: none;
+}
+
 .nav-item span:last-child {
   max-width: 100%;
   overflow: hidden;

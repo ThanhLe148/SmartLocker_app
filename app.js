@@ -199,7 +199,11 @@ function updateChrome() {
 
   document.querySelectorAll(".nav-item").forEach((item) => {
     const route = item.dataset.route;
+    const requiresLogin = route === "orders" || route === "history";
+    const requiresLocker = route === "lockerMap";
+    const hidden = (requiresLogin && !state.user) || (requiresLocker && !state.lockerScanned);
     const active = route === state.route || (route === "home" && state.route === "home");
+    item.classList.toggle("is-hidden", hidden);
     item.classList.toggle("active", active && !item.dataset.action);
   });
 }
