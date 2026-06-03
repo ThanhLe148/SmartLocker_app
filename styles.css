@@ -702,6 +702,12 @@ figure {
   color: var(--danger);
 }
 
+.logout-btn {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(220, 63, 75, 0.2);
+}
+
 .mini-btn {
   min-height: 34px;
   border: 1px solid var(--line);

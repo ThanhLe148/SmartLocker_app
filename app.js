@@ -900,6 +900,7 @@ function profile() {
       ${isShipper ? `<div class="metric-row"><span>Số dư shipper</span><strong>${formatMoney(state.shipperBalance)}</strong></div>` : ""}
       <button class="secondary-btn" data-action="switchRole" type="button">Đổi vai trò demo</button>
       <button class="secondary-btn" data-action="resetStart" type="button">Quét lại block tủ</button>
+      <button class="danger-btn logout-btn" data-action="logout" type="button">${icon("logout")} Đăng xuất</button>
     </section>
   `;
 }
@@ -1056,6 +1057,17 @@ async function handleAction(action, button) {
     state.role = "";
     state.user = null;
     localStorage.removeItem("smartlocker.pendingRole");
+    setRoute("lockerScan");
+  }
+  if (action === "logout") {
+    if (hasSupabase) await supabaseClient.auth.signOut();
+    state.user = null;
+    state.role = "";
+    state.lockerScanned = false;
+    localStorage.removeItem("smartlocker.pendingRole");
+    localStorage.removeItem("smartlocker.role");
+    localStorage.setItem("smartlocker.lockerScanned", "false");
+    showToast("Đã đăng xuất");
     setRoute("lockerScan");
   }
   if (action === "manualLocker") showToast("Demo: đã nhập mã block tủ BLOCK-DH-001");
