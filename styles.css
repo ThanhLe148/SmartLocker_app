@@ -110,9 +110,9 @@ figure {
   overflow: hidden;
   display: grid;
   place-items: center;
-  width: 96px;
-  height: 52px;
-  border-radius: 15px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
   border: 1px solid rgba(21, 95, 89, 0.12);
   background: #fff;
   padding: 5px;
@@ -1483,8 +1483,8 @@ figure {
   }
 
   .brand-mark {
-    width: 76px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
   }
 
   .title-stack h1 {
